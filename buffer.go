@@ -4,8 +4,8 @@ type ByteBuffer struct {
 	buf []byte
 }
 
-func (buf *ByteBuffer) Len() int {
-	return len(buf.buf)
+func (buf *ByteBuffer) Len() int64 {
+	return int64(len(buf.buf))
 }
 
 func (buf *ByteBuffer) Discard(len int) {

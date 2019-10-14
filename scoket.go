@@ -102,12 +102,17 @@ func poll(socket *Socket) {
 func (s *Socket) ByteBufferSegment() {
 	for {
 		if bytes := s.Protocol.Segment(s.ByteBuffer); bytes != nil {
+			if !s.Protocol.IsValidMessage(bytes) {
+				s.ByteBuffer.Discard(1)
+				s.ByteBufferSegment()
+				return
+			}
 			if data, err := s.Protocol.Decode(bytes); err == nil {
 				b, _ := data.([]byte)
 				s.Emit("data", b)
 			}
 		} else {
-			break
+			return
 		}
 	}
 }

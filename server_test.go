@@ -12,8 +12,8 @@ func (p *EchoProtocol) Segment(buf *eio.ByteBuffer) []byte {
 	if buf.Len() == 0 {
 		return nil
 	}
-	bytes := buf.Read(0, buf.Len())
-	buf.Discard(buf.Len())
+	bytes := buf.Read(0, int(buf.Len()))
+	buf.Discard(int(buf.Len()))
 	return bytes
 }
 
@@ -24,6 +24,10 @@ func (p *EchoProtocol) Decode(bytes []byte) (interface{}, error) {
 func (p *EchoProtocol) Encode(d interface{}) ([]byte, error) {
 	bytes, _ := d.([]byte)
 	return bytes, nil
+}
+
+func (p *EchoProtocol) IsValidMessage(bytes []byte) bool {
+	return true
 }
 
 func TestServer(t *testing.T) {
