@@ -5,8 +5,6 @@ import (
 	"errors"
 	uuid "github.com/satori/go.uuid"
 	event "github.com/swift9/ares-event"
-	"io"
-	"log"
 	"net"
 )
 
@@ -20,6 +18,7 @@ type Socket struct {
 	ByteBuffer      *ByteBuffer
 	Protocol        Protocol
 	isPooled        bool
+	Log             ILog
 }
 
 func NewSocket(conn *net.TCPConn, protocol Protocol) *Socket {
@@ -33,8 +32,13 @@ func NewSocket(conn *net.TCPConn, protocol Protocol) *Socket {
 		ByteBuffer:      &ByteBuffer{},
 		Protocol:        protocol,
 		isPooled:        false,
+		Log:             &SysLog{},
 	}
 	return socket
+}
+
+func (s *Socket) SetLog(log ILog) {
+	s.Log = log
 }
 
 func (s *Socket) SetReadBufferSize(size int) {
@@ -64,6 +68,7 @@ func (s *Socket) WriteData(data interface{}) (int, error) {
 
 func (s *Socket) Read(bytes []byte) (int, error) {
 	if s.Conn == nil {
+		s.Log.Error("connection is nil")
 		return 0, errors.New("connection is closed")
 	}
 	return s.Conn.Read(bytes)
@@ -79,7 +84,6 @@ func (s *Socket) CloseWrite() error {
 
 func (s *Socket) Close() error {
 	e := s.Conn.Close()
-	s.Emit("close")
 	return e
 }
 
@@ -96,9 +100,8 @@ func (s *Socket) byteBufferPoll() (int, error) {
 	)
 	bytes := make([]byte, s.ReadBufferSize)
 	if n, err = s.Conn.Read(bytes); err != nil {
-		if err != io.EOF {
-			s.Emit("error", err)
-		}
+		s.Log.Error("socket read error ", err)
+		s.Emit("error", err)
 		return 0, err
 	}
 	s.ByteBuffer.Append(bytes[0:n])
@@ -115,7 +118,7 @@ func (s *Socket) Poll() {
 func poll(socket *Socket) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("ERROR Read", err)
+			socket.Log.Error("poll ", err)
 			socket.Emit("error", errors.New("unknown"))
 		}
 	}()
@@ -142,6 +145,8 @@ func (s *Socket) ByteBufferSegment() {
 			}
 			if data, err := s.Protocol.Decode(bytes); err == nil {
 				s.Emit("data", data)
+			} else {
+				s.Log.Error("decode ", err)
 			}
 		} else {
 			return
