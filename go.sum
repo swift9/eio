@@ -1,0 +1,6 @@
+github.com/asaskevich/EventBus v0.0.0-20180315140547-d46933a94f05 h1:Shem5lRG4gJyrrg9YMIl7dOQazyWCq0Daz4LjompZ28=
+github.com/asaskevich/EventBus v0.0.0-20180315140547-d46933a94f05/go.mod h1:JS7hed4L1fj0hXcyEejnW57/7LCetXggd+vwrRnYeII=
+github.com/satori/go.uuid v1.2.0 h1:0uYX9dsZ2yD7q2RtLRtPSdGDWzjeM3TbMJP9utgA0ww=
+github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
+github.com/swift9/ares-event v0.0.2 h1:W2HEq133x/SAcpXfYdu6L6AWqzL5h/rvcrJRB6hM4Ug=
+github.com/swift9/ares-event v0.0.2/go.mod h1:CnPOYe56bJKuv2D27fIO6kpyiLIT80tNY5hpn9R2HYQ=
