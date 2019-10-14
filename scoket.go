@@ -2,8 +2,11 @@ package eio
 
 import (
 	"bufio"
+	"errors"
 	uuid "github.com/satori/go.uuid"
 	event "github.com/swift9/ares-event"
+	"io"
+	"log"
 	"net"
 )
 
@@ -47,10 +50,21 @@ func (s *Socket) SetTcpNoDelay(tcoNoDelay bool) {
 }
 
 func (s *Socket) Write(bytes []byte) (int, error) {
+	if s.Conn == nil {
+		return 0, errors.New("connection is closed")
+	}
 	return s.Conn.Write(bytes)
 }
 
+func (s *Socket) WriteData(data interface{}) (int, error) {
+	bytes, _ := s.Protocol.Encode(data)
+	return s.Write(bytes)
+}
+
 func (s *Socket) Read(bytes []byte) (int, error) {
+	if s.Conn == nil {
+		return 0, errors.New("connection is closed")
+	}
 	return s.Conn.Read(bytes)
 }
 
@@ -73,7 +87,6 @@ func (s *Socket) byteBufferPoll() (int, error) {
 	)
 	bytes := make([]byte, s.ReadBufferSize)
 	if n, err = s.Conn.Read(bytes); err != nil {
-		s.Close(err)
 		return 0, err
 	}
 	s.ByteBuffer.Append(bytes[0:n])
@@ -88,9 +101,20 @@ func (s *Socket) Poll() {
 }
 
 func poll(socket *Socket) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("ERROR ", err)
+			socket.Emit("error", "unknown")
+		}
+	}()
 	for {
 		n, err := socket.byteBufferPoll()
 		if err != nil {
+			if err == io.EOF {
+				socket.Emit("close")
+			} else {
+				socket.Emit("error")
+			}
 			break
 		}
 		if n > 0 {
@@ -106,6 +130,8 @@ func (s *Socket) ByteBufferSegment() {
 				s.ByteBuffer.Discard(1)
 				s.ByteBufferSegment()
 				return
+			} else {
+				s.ByteBuffer.Discard(len(bytes))
 			}
 			if data, err := s.Protocol.Decode(bytes); err == nil {
 				b, _ := data.([]byte)

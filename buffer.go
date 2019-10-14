@@ -8,8 +8,8 @@ func (buf *ByteBuffer) Len() int64 {
 	return int64(len(buf.buf))
 }
 
-func (buf *ByteBuffer) Discard(len int) {
-	buf.buf = buf.buf[len:]
+func (buf *ByteBuffer) Discard(l int) {
+	buf.buf = buf.buf[l:]
 }
 
 func (buf *ByteBuffer) Append(bytes []byte) {

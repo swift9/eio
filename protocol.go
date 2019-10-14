@@ -1,7 +1,6 @@
 package eio
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 )
 
@@ -38,7 +37,7 @@ func (p *VariableProtocol) Segment(buf *ByteBuffer) []byte {
 	}
 
 	lengthBytes := buf.buf[len(p.MagicBytes):(len(p.MagicBytes) + p.LengthByteSize)]
-	messageLength := int64(binary.BigEndian.Uint64(lengthBytes))
+	messageLength := BytesToInt64(lengthBytes)
 
 	if buf.Len() < messageLength {
 		return nil
