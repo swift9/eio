@@ -134,8 +134,7 @@ func (s *Socket) ByteBufferSegment() {
 				s.ByteBuffer.Discard(len(bytes))
 			}
 			if data, err := s.Protocol.Decode(bytes); err == nil {
-				b, _ := data.([]byte)
-				s.Emit("data", b)
+				s.Emit("data", data)
 			}
 		} else {
 			return
