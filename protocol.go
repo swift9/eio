@@ -27,13 +27,15 @@ type VariableProtocol struct {
 
 func (p *VariableProtocol) Segment(buf *ByteBuffer) []byte {
 	magicBytesLength := len(p.MagicBytes)
-	headerLength := int64(magicBytesLength + p.LengthByteSize)
-	if buf.Len() < headerLength {
-		return nil
-	}
+
 	if hex.EncodeToString(p.MagicBytes) != hex.EncodeToString(buf.Read(0, magicBytesLength)) {
 		buf.Discard(1)
 		return p.Segment(buf)
+	}
+
+	headerLength := int64(magicBytesLength + p.LengthByteSize)
+	if buf.Len() < headerLength {
+		return nil
 	}
 
 	lengthBytes := buf.buf[len(p.MagicBytes):(len(p.MagicBytes) + p.LengthByteSize)]
