@@ -3,6 +3,7 @@ package eio_test
 import (
 	"eio"
 	"testing"
+	"time"
 )
 
 type EchoProtocol struct {
@@ -33,7 +34,7 @@ func (p *EchoProtocol) IsValidMessage(bytes []byte) bool {
 func TestServer(t *testing.T) {
 	server := eio.NewServer(":8000", &EchoProtocol{})
 
-	server.Listen(func(socket *eio.Socket) {
+	go server.Listen(func(socket *eio.Socket) {
 		println(socket.Id)
 		socket.OnSync("data", func(data interface{}) {
 			bytes, _ := data.([]byte)
@@ -41,5 +42,18 @@ func TestServer(t *testing.T) {
 		})
 		socket.Poll()
 	})
+
+	client := eio.NewClient(":8000", &EchoProtocol{})
+
+	client.Connect(func(s *eio.Socket) {
+		s.Poll()
+		s.Write([]byte("hello"))
+		s.On("data", func(data interface{}) {
+			bytes, _ := data.([]byte)
+			println("reply:" + string(bytes))
+		})
+	})
+
+	time.Sleep(3 * time.Second)
 
 }

@@ -66,7 +66,7 @@ func (s *Socket) Pipe(socket *Socket) {
 	w.ReadFrom(r)
 }
 
-func (s *Socket) ByteBufferPoll() (int, error) {
+func (s *Socket) byteBufferPoll() (int, error) {
 	var (
 		n         = 0
 		err error = nil
@@ -89,7 +89,7 @@ func (s *Socket) Poll() {
 
 func poll(socket *Socket) {
 	for {
-		n, err := socket.ByteBufferPoll()
+		n, err := socket.byteBufferPoll()
 		if err != nil {
 			break
 		}
