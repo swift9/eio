@@ -2,7 +2,7 @@ package eio_test
 
 import (
 	"eio"
-	"encoding/hex"
+	"log"
 	"testing"
 	"time"
 )
@@ -83,21 +83,14 @@ func TestVariableProtocol_Server(t *testing.T) {
 		println(socket.Id)
 		socket.OnSync("data", func(data interface{}) {
 			bytes, _ := data.([]byte)
-			socket.Write(bytes)
+			_, err := socket.Write(bytes)
+			if err != nil {
+				log.Println("write error", err)
+			}
 		})
 		socket.Poll()
 	})
 
-	time.Sleep(1 * time.Second)
-	client := eio.NewClient(":8000", customProtocol)
+	time.Sleep(10 * time.Second)
 
-	client.Connect(func(s *eio.Socket) {
-		s.Poll()
-		s.Write([]byte{0xD0, 0x03, 0x00, 0xD0, 0x03, 0x88})
-		s.On("data", func(data interface{}) {
-			bytes, _ := data.([]byte)
-			println("server reply:" + hex.EncodeToString(bytes))
-		})
-	})
-	time.Sleep(1 * time.Second)
 }

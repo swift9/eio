@@ -53,6 +53,7 @@ func (s *Socket) Write(bytes []byte) (int, error) {
 	if s.Conn == nil {
 		return 0, errors.New("connection is closed")
 	}
+
 	return s.Conn.Write(bytes)
 }
 
@@ -68,9 +69,17 @@ func (s *Socket) Read(bytes []byte) (int, error) {
 	return s.Conn.Read(bytes)
 }
 
-func (s *Socket) Close(err error) error {
+func (s *Socket) CloseRead() error {
+	return s.Conn.CloseRead()
+}
+
+func (s *Socket) CloseWrite() error {
+	return s.Conn.CloseWrite()
+}
+
+func (s *Socket) Close() error {
 	e := s.Conn.Close()
-	s.Emit("close", err)
+	s.Emit("close")
 	return e
 }
 
@@ -87,6 +96,9 @@ func (s *Socket) byteBufferPoll() (int, error) {
 	)
 	bytes := make([]byte, s.ReadBufferSize)
 	if n, err = s.Conn.Read(bytes); err != nil {
+		if err != io.EOF {
+			s.Emit("error", err)
+		}
 		return 0, err
 	}
 	s.ByteBuffer.Append(bytes[0:n])
@@ -103,18 +115,13 @@ func (s *Socket) Poll() {
 func poll(socket *Socket) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("ERROR ", err)
-			socket.Emit("error", "unknown")
+			log.Println("ERROR Read", err)
+			socket.Emit("error", errors.New("unknown"))
 		}
 	}()
 	for {
 		n, err := socket.byteBufferPoll()
 		if err != nil {
-			if err == io.EOF {
-				socket.Emit("close")
-			} else {
-				socket.Emit("error")
-			}
 			break
 		}
 		if n > 0 {
