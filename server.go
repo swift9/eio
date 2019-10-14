@@ -8,23 +8,21 @@ import (
 type Server struct {
 	event.Emitter
 	tcpListener *net.TCPListener
-	Sessions    map[string]*Session
+	Sockets     map[string]*Socket
 	Addr        string
-	Decoder     IDecodet
-	Encoder     IEncoder
+	Protocol    Protocol
 }
 
-func NewServer(addr string) *Server {
+func NewServer(addr string, protocol Protocol) *Server {
 	server := &Server{
-		Addr: addr,
+		Addr:     addr,
+		Protocol: protocol,
+		Sockets:  make(map[string]*Socket),
 	}
-	server.On("error", func(err error) {
-		println(err)
-	})
 	return server
 }
 
-func (server *Server) Listen(onSession func(session *Session)) error {
+func (server *Server) Listen(onConnect func(socket *Socket)) error {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", server.Addr)
 
 	if err != nil {
@@ -36,22 +34,19 @@ func (server *Server) Listen(onSession func(session *Session)) error {
 		return err
 	}
 
-	go func() {
-		for {
-			conn, err := server.tcpListener.AcceptTCP()
-			if err != nil {
-				server.Emit("error", err)
-				continue
-			}
-			session := NewSession(conn)
-			server.Sessions[session.Id] = session
-			onSession(session)
-			go onSession(session)
+	for {
+		conn, err := server.tcpListener.AcceptTCP()
+		if err != nil {
+			server.Emit("error", err)
+			continue
 		}
-	}()
+		socket := NewSocket(conn, server.Protocol)
+		server.Sockets[socket.Id] = socket
+		go server.onConnect(socket, onConnect)
+	}
 	return nil
 }
 
-func (server *Server) onSession(session *Session) {
-
+func (server *Server) onConnect(socket *Socket, callback func(socket *Socket)) {
+	callback(socket)
 }
