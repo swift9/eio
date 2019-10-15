@@ -8,7 +8,7 @@ import (
 	"net"
 )
 
-type Socket struct {
+type Session struct {
 	event.Emitter
 	Id              string
 	Conn            *net.TCPConn
@@ -23,9 +23,9 @@ type Socket struct {
 	isClosedWrite   bool
 }
 
-func NewSocket(conn *net.TCPConn, protocol Protocol) *Socket {
+func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
 	id := uuid.NewV4().String()
-	socket := &Socket{
+	socket := &Session{
 		Id:              id,
 		Conn:            conn,
 		ReadBufferSize:  1024 * 1024,
@@ -39,27 +39,27 @@ func NewSocket(conn *net.TCPConn, protocol Protocol) *Socket {
 	return socket
 }
 
-func (s *Socket) SetLog(log ILog) {
+func (s *Session) SetLog(log ILog) {
 	s.Log = log
 }
 
-func (s *Socket) SetReadBufferSize(size int) {
+func (s *Session) SetReadBufferSize(size int) {
 	s.Conn.SetReadBuffer(size)
 }
 
-func (s *Socket) SetWriteBufferSize(size int) {
+func (s *Session) SetWriteBufferSize(size int) {
 	s.Conn.SetWriteBuffer(size)
 }
 
-func (s *Socket) SetTcpNoDelay(tcoNoDelay bool) {
+func (s *Session) SetTcpNoDelay(tcoNoDelay bool) {
 	s.Conn.SetNoDelay(tcoNoDelay)
 }
 
-func (s *Socket) SetKeepAlive(keepAlive bool) {
+func (s *Session) SetKeepAlive(keepAlive bool) {
 	s.Conn.SetKeepAlive(keepAlive)
 }
 
-func (s *Socket) Write(bytes []byte) (int, error) {
+func (s *Session) Write(bytes []byte) (int, error) {
 	if s.Conn == nil {
 		return 0, errors.New("connection is closed")
 	}
@@ -72,12 +72,12 @@ func (s *Socket) Write(bytes []byte) (int, error) {
 	return n, err
 }
 
-func (s *Socket) WriteData(data interface{}) (int, error) {
-	bytes, _ := s.Protocol.Encode(data)
+func (s *Session) SendMessage(message interface{}) (int, error) {
+	bytes, _ := s.Protocol.Encode(message)
 	return s.Write(bytes)
 }
 
-func (s *Socket) Read(bytes []byte) (int, error) {
+func (s *Session) Read(bytes []byte) (int, error) {
 	if s.Conn == nil {
 		s.Log.Error("connection is nil")
 		return 0, errors.New("connection is closed")
@@ -91,33 +91,33 @@ func (s *Socket) Read(bytes []byte) (int, error) {
 	return n, err
 }
 
-func (s *Socket) CloseRead() error {
+func (s *Session) CloseRead() error {
 	err := s.Conn.CloseRead()
 	s.isClosedRead = true
 	s.Emit("closeRead")
 	return err
 }
 
-func (s *Socket) CloseWrite() error {
+func (s *Session) CloseWrite() error {
 	err := s.Conn.CloseWrite()
 	s.isClosedWrite = true
 	s.Emit("closeWrite")
 	return err
 }
 
-func (s *Socket) Close() error {
+func (s *Session) Close() error {
 	e := s.Conn.Close()
 	s.Emit("close")
 	return e
 }
 
-func (s *Socket) Pipe(socket *Socket) {
+func (s *Session) Pipe(socket *Session) {
 	w := bufio.NewWriterSize(socket, socket.WriteBufferSize)
 	r := bufio.NewReaderSize(s, s.ReadBufferSize)
 	w.ReadFrom(r)
 }
 
-func (s *Socket) byteBufferPoll() (int, error) {
+func (s *Session) readIn() (int, error) {
 	var (
 		n         = 0
 		err error = nil
@@ -132,33 +132,33 @@ func (s *Socket) byteBufferPoll() (int, error) {
 	return n, nil
 }
 
-func (s *Socket) Poll() {
+func (s *Session) poll() {
 	if !s.isPooled {
 		s.isPooled = true
 		go poll(s)
 	}
 }
 
-func poll(socket *Socket) {
+func poll(session *Session) {
 	defer func() {
 		if err := recover(); err != nil {
-			socket.Log.Error("poll ", err)
-			socket.Emit("error", errors.New("unknown"))
-			socket.CloseRead()
+			session.Log.Error("poll ", err)
+			session.Emit("error", errors.New("unknown"))
+			session.CloseRead()
 		}
 	}()
 	for {
-		n, err := socket.byteBufferPoll()
+		n, err := session.readIn()
 		if err != nil {
 			break
 		}
 		if n > 0 {
-			socket.ByteBufferSegment()
+			session.ByteBufferSegment()
 		}
 	}
 }
 
-func (s *Socket) ByteBufferSegment() {
+func (s *Session) ByteBufferSegment() {
 	for {
 		if bytes := s.Protocol.Segment(s.ByteBuffer); bytes != nil {
 			if !s.Protocol.IsValidMessage(bytes) {
@@ -168,8 +168,8 @@ func (s *Socket) ByteBufferSegment() {
 			} else {
 				s.ByteBuffer.Discard(len(bytes))
 			}
-			if data, err := s.Protocol.Decode(bytes); err == nil {
-				s.Emit("data", data)
+			if message, err := s.Protocol.Decode(bytes); err == nil {
+				s.Emit("message", message)
 			} else {
 				s.Log.Error("decode ", err)
 			}

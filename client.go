@@ -7,16 +7,18 @@ import (
 
 type Client struct {
 	event.Emitter
-	Addr     string
-	Protocol Protocol
-	Log      ILog
+	Addr      string
+	Protocol  Protocol
+	Log       ILog
+	OnMessage func(message interface{}, session *Session)
 }
 
-func NewClient(addr string, protocol Protocol) *Client {
+func NewClient(addr string, protocol Protocol, onMessage func(message interface{}, session *Session)) *Client {
 	client := &Client{
-		Addr:     addr,
-		Protocol: protocol,
-		Log:      &SysLog{},
+		Addr:      addr,
+		Protocol:  protocol,
+		Log:       &SysLog{},
+		OnMessage: onMessage,
 	}
 	return client
 }
@@ -25,9 +27,8 @@ func (c *Client) SetLog(log ILog) {
 	c.Log = log
 }
 
-func (c *Client) Connect(onConnect func(s *Socket)) error {
+func (c *Client) Connect(onConnect func(s *Session)) error {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", c.Addr)
-
 	if err != nil {
 		return err
 	}
@@ -36,8 +37,16 @@ func (c *Client) Connect(onConnect func(s *Socket)) error {
 		c.Log.Error("connection ", err)
 		return err
 	}
-	socket := NewSocket(conn, c.Protocol)
-	socket.SetLog(c.Log)
-	go onConnect(socket)
+	session := NewSession(conn, c.Protocol)
+	session.SetLog(c.Log)
+	if c.OnMessage != nil {
+		session.On("message", func(message interface{}) {
+			c.OnMessage(message, session)
+		})
+	}
+	go func() {
+		onConnect(session)
+		session.poll()
+	}()
 	return nil
 }

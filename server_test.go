@@ -1,7 +1,7 @@
 package eio_test
 
 import (
-	"eio"
+	"github.com/swift9/eio"
 	"log"
 	"testing"
 	"time"
@@ -32,24 +32,22 @@ func (p *EchoProtocol) IsValidMessage(bytes []byte) bool {
 }
 
 func TestEcho_Server(t *testing.T) {
-	server := eio.NewServer(":8000", &EchoProtocol{})
+	server := eio.NewServer(":8000", &EchoProtocol{}, nil)
 
-	go server.Listen(func(socket *eio.Socket) {
+	go server.Listen(func(socket *eio.Session) {
 		println(socket.Id)
-		socket.OnSync("data", func(data interface{}) {
-			bytes, _ := data.([]byte)
+		socket.OnSync("message", func(message interface{}) {
+			bytes, _ := message.([]byte)
 			socket.Write(bytes)
 		})
-		socket.Poll()
 	})
 
-	client := eio.NewClient(":8000", &EchoProtocol{})
+	client := eio.NewClient(":8000", &EchoProtocol{}, nil)
 
-	client.Connect(func(s *eio.Socket) {
-		s.Poll()
+	client.Connect(func(s *eio.Session) {
 		s.Write([]byte("hello"))
-		s.On("data", func(data interface{}) {
-			bytes, _ := data.([]byte)
+		s.On("message", func(message interface{}) {
+			bytes, _ := message.([]byte)
 			println("reply:" + string(bytes))
 		})
 	})
@@ -76,19 +74,18 @@ func (p *CustomProtocol) IsValidMessage(bytes []byte) bool {
 func TestVariableProtocol_Server(t *testing.T) {
 	customProtocol := &CustomProtocol{}
 	customProtocol.MagicBytes = []byte{0xD0}
-	customProtocol.LengthByteSize = 1
-	server := eio.NewServer(":8000", customProtocol)
+	customProtocol.MessageByteSize = 1
+	server := eio.NewServer(":8000", customProtocol, nil)
 
-	go server.Listen(func(socket *eio.Socket) {
+	go server.Listen(func(socket *eio.Session) {
 		println(socket.Id)
-		socket.OnSync("data", func(data interface{}) {
-			bytes, _ := data.([]byte)
+		socket.OnSync("message", func(message interface{}) {
+			bytes, _ := message.([]byte)
 			_, err := socket.Write(bytes)
 			if err != nil {
 				log.Println("write error", err)
 			}
 		})
-		socket.Poll()
 	})
 
 	time.Sleep(10 * time.Second)

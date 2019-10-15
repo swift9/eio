@@ -1,8 +1,8 @@
 package eio_test
 
 import (
-	"eio"
 	"encoding/hex"
+	"github.com/swift9/eio"
 	"testing"
 	"time"
 )
@@ -27,15 +27,14 @@ func (p *CustomProtocolClient) IsValidMessage(bytes []byte) bool {
 func TestVariableProtocol_Client(t *testing.T) {
 	customProtocol := &CustomProtocolClient{}
 	customProtocol.MagicBytes = []byte{0xD0}
-	customProtocol.LengthByteSize = 1
+	customProtocol.MessageByteSize = 1
 
-	client := eio.NewClient(":8000", customProtocol)
+	client := eio.NewClient(":8000", customProtocol, nil)
 
-	client.Connect(func(s *eio.Socket) {
-		s.Poll()
+	client.Connect(func(s *eio.Session) {
 		s.Write([]byte{0xD0, 0x03, 0x00, 0xD0, 0x03, 0x88})
-		s.On("data", func(data interface{}) {
-			bytes, _ := data.([]byte)
+		s.On("message", func(message interface{}) {
+			bytes, _ := message.([]byte)
 			println("server reply:" + hex.EncodeToString(bytes))
 		})
 	})

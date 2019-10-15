@@ -21,14 +21,14 @@ type Protocol interface {
 }
 
 type VariableProtocol struct {
-	MagicBytes     []byte
-	LengthByteSize int
+	MagicBytes      []byte
+	MessageByteSize int
 }
 
 func (p *VariableProtocol) Segment(buf *ByteBuffer) []byte {
 	magicBytesLength := len(p.MagicBytes)
 
-	headerLength := int64(magicBytesLength + p.LengthByteSize)
+	headerLength := int64(magicBytesLength + p.MessageByteSize)
 	if buf.Len() < headerLength {
 		return nil
 	}
@@ -38,7 +38,7 @@ func (p *VariableProtocol) Segment(buf *ByteBuffer) []byte {
 		return p.Segment(buf)
 	}
 
-	lengthBytes := buf.buf[len(p.MagicBytes):(len(p.MagicBytes) + p.LengthByteSize)]
+	lengthBytes := buf.buf[len(p.MagicBytes):(len(p.MagicBytes) + p.MessageByteSize)]
 	messageLength := BytesToInt64(lengthBytes)
 
 	if buf.Len() < messageLength {
