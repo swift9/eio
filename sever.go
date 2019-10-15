@@ -34,7 +34,7 @@ func (server *Server) SetLog(log ILog) {
 	server.Log = log
 }
 
-func (server *Server) Listen(onConnect func(socket *Session)) error {
+func (server *Server) Listen(onConnect func(session *Session)) error {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", server.Addr)
 	if err != nil {
 		server.Log.Error(err)

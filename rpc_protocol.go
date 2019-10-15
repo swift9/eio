@@ -1,5 +1,7 @@
 package eio
 
+import "errors"
+
 type RpcProtocol struct {
 	VariableProtocol
 	CheckCodeBytes []byte
@@ -64,6 +66,8 @@ func (rpcProtocol *RpcProtocol) Encode(session *Session, message interface{}) (*
 				byteBuffer.Append(rpcProtocol.CheckCodeBytes)
 			}
 		}
+	} else {
+		return nil, errors.New("not support")
 	}
 	return byteBuffer, nil
 }
