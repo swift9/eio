@@ -19,6 +19,8 @@ type Socket struct {
 	Protocol        Protocol
 	isPooled        bool
 	Log             ILog
+	isClosedRead    bool
+	isClosedWrite   bool
 }
 
 func NewSocket(conn *net.TCPConn, protocol Protocol) *Socket {
@@ -53,12 +55,21 @@ func (s *Socket) SetTcpNoDelay(tcoNoDelay bool) {
 	s.Conn.SetNoDelay(tcoNoDelay)
 }
 
+func (s *Socket) SetKeepAlive(keepAlive bool) {
+	s.Conn.SetKeepAlive(keepAlive)
+}
+
 func (s *Socket) Write(bytes []byte) (int, error) {
 	if s.Conn == nil {
 		return 0, errors.New("connection is closed")
 	}
+	n, err := s.Conn.Write(bytes)
 
-	return s.Conn.Write(bytes)
+	if err != nil {
+		s.Log.Error("write error ", err)
+		s.CloseWrite()
+	}
+	return n, err
 }
 
 func (s *Socket) WriteData(data interface{}) (int, error) {
@@ -71,19 +82,32 @@ func (s *Socket) Read(bytes []byte) (int, error) {
 		s.Log.Error("connection is nil")
 		return 0, errors.New("connection is closed")
 	}
-	return s.Conn.Read(bytes)
+	n, err := s.Conn.Read(bytes)
+
+	if err != nil {
+		s.Log.Error("read error ", err)
+		s.CloseRead()
+	}
+	return n, err
 }
 
 func (s *Socket) CloseRead() error {
-	return s.Conn.CloseRead()
+	err := s.Conn.CloseRead()
+	s.isClosedRead = true
+	s.Emit("closeRead")
+	return err
 }
 
 func (s *Socket) CloseWrite() error {
-	return s.Conn.CloseWrite()
+	err := s.Conn.CloseWrite()
+	s.isClosedWrite = true
+	s.Emit("closeWrite")
+	return err
 }
 
 func (s *Socket) Close() error {
 	e := s.Conn.Close()
+	s.Emit("close")
 	return e
 }
 
@@ -120,6 +144,7 @@ func poll(socket *Socket) {
 		if err := recover(); err != nil {
 			socket.Log.Error("poll ", err)
 			socket.Emit("error", errors.New("unknown"))
+			socket.CloseRead()
 		}
 	}()
 	for {
