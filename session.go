@@ -10,31 +10,31 @@ import (
 
 type Session struct {
 	event.Emitter
-	Id              string
-	Conn            *net.TCPConn
-	ReadBufferSize  int
-	WriteBufferSize int
-	TcpNoDelay      bool
-	ByteBuffer      *ByteBuffer
-	Protocol        Protocol
-	isPooled        bool
-	Log             ILog
-	isClosedRead    bool
-	isClosedWrite   bool
+	Id                string
+	Conn              *net.TCPConn
+	ReadBufferSize    int
+	WriteBufferSize   int
+	TcpNoDelay        bool
+	MessageByteBuffer *MessageByteBuffer
+	Protocol          Protocol
+	isPooled          bool
+	Log               ILog
+	isClosedRead      bool
+	isClosedWrite     bool
 }
 
 func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
 	id := uuid.NewV4().String()
 	socket := &Session{
-		Id:              id,
-		Conn:            conn,
-		ReadBufferSize:  1024 * 1024,
-		WriteBufferSize: 1024 * 1024,
-		TcpNoDelay:      false,
-		ByteBuffer:      &ByteBuffer{},
-		Protocol:        protocol,
-		isPooled:        false,
-		Log:             &SysLog{},
+		Id:                id,
+		Conn:              conn,
+		ReadBufferSize:    1024 * 1024,
+		WriteBufferSize:   1024 * 1024,
+		TcpNoDelay:        false,
+		MessageByteBuffer: &MessageByteBuffer{},
+		Protocol:          protocol,
+		isPooled:          false,
+		Log:               &SysLog{},
 	}
 	return socket
 }
@@ -73,8 +73,8 @@ func (s *Session) Write(bytes []byte) (int, error) {
 }
 
 func (s *Session) SendMessage(message interface{}) (int, error) {
-	bytes, _ := s.Protocol.Encode(message)
-	return s.Write(bytes)
+	bytes, _ := s.Protocol.Encode(s, message)
+	return s.Write(bytes.Message())
 }
 
 func (s *Session) Read(bytes []byte) (int, error) {
@@ -128,7 +128,7 @@ func (s *Session) readIn() (int, error) {
 		s.Emit("error", err)
 		return 0, err
 	}
-	s.ByteBuffer.Append(bytes[0:n])
+	s.MessageByteBuffer.Append(bytes[0:n])
 	return n, nil
 }
 
@@ -160,21 +160,25 @@ func poll(session *Session) {
 
 func (s *Session) ByteBufferSegment() {
 	for {
-		if bytes := s.Protocol.Segment(s.ByteBuffer); bytes != nil {
-			if !s.Protocol.IsValidMessage(bytes) {
-				s.ByteBuffer.Discard(1)
-				s.ByteBufferSegment()
-				return
+		if start, end := s.Protocol.Segment(s, s.MessageByteBuffer); end != 0 {
+			messageByte := s.MessageByteBuffer.Peek(start, end)
+			if s.Protocol.IsValidMessage(s, messageByte) {
+				s.MessageByteBuffer.Discard(messageByte.Len())
 			} else {
-				s.ByteBuffer.Discard(len(bytes))
+				s.MessageByteBuffer.Discard(1)
+				continue
 			}
-			if message, err := s.Protocol.Decode(bytes); err == nil {
-				s.Emit("message", message)
-			} else {
-				s.Log.Error("decode ", err)
-			}
+			go s.handleMessageByte(messageByte)
 		} else {
 			return
 		}
+	}
+}
+
+func (s *Session) handleMessageByte(messageByte *MessageByteBuffer) {
+	if message, err := s.Protocol.Decode(s, messageByte); err == nil {
+		s.Emit("message", &message)
+	} else {
+		s.Log.Error("decode ", err)
 	}
 }

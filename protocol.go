@@ -1,23 +1,23 @@
 package eio
 
 import (
-	"encoding/hex"
+	"bytes"
 )
 
 // 协议处理
 // 报文分包、编解码
 type Protocol interface {
 	// 报文分包
-	Segment(buf *ByteBuffer) []byte
+	Segment(session *Session, buf *MessageByteBuffer) (start int64, end int64)
 
 	// 解码
-	Decode(bytes []byte) (interface{}, error)
+	Decode(session *Session, message *MessageByteBuffer) (interface{}, error)
 
 	// 编码
-	Encode(d interface{}) ([]byte, error)
+	Encode(session *Session, d interface{}) (*MessageByteBuffer, error)
 
 	// 验证报文有效性
-	IsValidMessage(message []byte) bool
+	IsValidMessage(session *Session, message *MessageByteBuffer) bool
 }
 
 type VariableProtocol struct {
@@ -25,39 +25,38 @@ type VariableProtocol struct {
 	MessageByteSize int
 }
 
-func (p *VariableProtocol) Segment(buf *ByteBuffer) []byte {
+func (p *VariableProtocol) Segment(session *Session, messageByteBuffer *MessageByteBuffer) (start int64, end int64) {
 	magicBytesLength := len(p.MagicBytes)
 
 	headerLength := int64(magicBytesLength + p.MessageByteSize)
-	if buf.Len() < headerLength {
-		return nil
+	if messageByteBuffer.Len() < headerLength {
+		return 0, 0
 	}
 
-	if hex.EncodeToString(p.MagicBytes) != hex.EncodeToString(buf.Read(0, magicBytesLength)) {
-		buf.Discard(1)
-		return p.Segment(buf)
+	if bytes.Equal(p.MagicBytes, messageByteBuffer.Peek(0, int64(magicBytesLength)).Message()) {
+		messageByteBuffer.Discard(1)
+		return p.Segment(session, messageByteBuffer)
 	}
 
-	lengthBytes := buf.buf[len(p.MagicBytes):(len(p.MagicBytes) + p.MessageByteSize)]
+	lengthBytes := messageByteBuffer.buf[len(p.MagicBytes):(len(p.MagicBytes) + p.MessageByteSize)]
 	messageLength := BytesToInt64(lengthBytes)
 
-	if buf.Len() < messageLength {
-		return nil
+	if messageByteBuffer.Len() < messageLength {
+		return 0, 0
 	}
 
-	bytes := buf.Read(0, int(messageLength))
-	return bytes
+	return 0, messageLength
 }
 
-func (p *VariableProtocol) IsValidMessage(bytes []byte) bool {
+func (p *VariableProtocol) IsValidMessage(session *Session, message *MessageByteBuffer) bool {
 	return true
 }
 
-func (p *VariableProtocol) Decode(bytes []byte) (interface{}, error) {
-	return bytes, nil
+func (p *VariableProtocol) Decode(session *Session, message *MessageByteBuffer) (interface{}, error) {
+	return &message, nil
 }
 
-func (p *VariableProtocol) Encode(d interface{}) ([]byte, error) {
-	bytes, _ := d.([]byte)
-	return bytes, nil
+func (p *VariableProtocol) Encode(session *Session, d interface{}) (*MessageByteBuffer, error) {
+	messageByte, _ := d.(MessageByteBuffer)
+	return &messageByte, nil
 }
