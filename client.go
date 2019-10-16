@@ -13,12 +13,11 @@ type Client struct {
 	OnMessage func(message interface{}, session *Session)
 }
 
-func NewClient(addr string, protocol Protocol, onMessage func(message interface{}, session *Session)) *Client {
+func NewClient(addr string, protocol Protocol) *Client {
 	client := &Client{
-		Addr:      addr,
-		Protocol:  protocol,
-		Log:       &SysLog{},
-		OnMessage: onMessage,
+		Addr:     addr,
+		Protocol: protocol,
+		Log:      &SysLog{},
 	}
 	return client
 }
@@ -38,13 +37,7 @@ func (c *Client) Connect(onConnect func(s *Session)) error {
 		return err
 	}
 	session := NewSession(conn, c.Protocol)
-	session.SetLog(c.Log)
-	if c.OnMessage != nil {
-		session.OnMessage = c.OnMessage
-	}
+	onConnect(session)
 	session.poll()
-	go func() {
-		onConnect(session)
-	}()
 	return nil
 }

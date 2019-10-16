@@ -6,61 +6,68 @@ import (
 	"time"
 )
 
-func TestClient_Connect(t *testing.T) {
+func test() {
 	protocol := &eio.RpcProtocol{}
 	protocol.MagicBytes = []byte{0xA0, 0xA0}
 	protocol.MessageByteSize = 8
 	protocol.CheckCodeBytes = []byte{0x0A, 0x0A}
-
-	client := eio.NewClient("localhost:8000", protocol, func(message interface{}, session *eio.Session) {
-		m, _ := message.(*eio.RpcMessage)
-		s, _ := m.Body.(string)
-		if m.RequestId%10000 == 0 {
-			println(time.Now().String(), s, m.RequestId)
-		}
+	client := eio.NewClient("localhost:8000", protocol)
+	var rpc *eio.RpcTemplate
+	client.Connect(func(session *eio.Session) {
+		rpc = eio.NewRpcTemplate(session)
+		session.OnMessage = rpc.OnMessage
 	})
 
-	client.Connect(func(s *eio.Session) {
+	for i := 0; i < 1; i++ {
 		go func() {
-			i := 0
-			println(time.Now().String())
 			for {
-				i++
-				s.SendMessage(&eio.RpcMessage{
+				m, _ := rpc.SendWithResponse(&eio.RpcMessage{
 					MessageType:     []byte{0x00, 0x01},
 					DataContentType: eio.TEXT,
 					Body:            "hello",
-				})
-				if i > 266666 {
+				}, 1*time.Second)
+				if m.ResponseId%10000 == 0 {
+					println(time.Now().String(), m.RequestId)
+				}
+				if m.ResponseId > 30*10000 {
 					break
 				}
 			}
 		}()
-	})
-
-	time.Sleep(1 * time.Hour)
+	}
 }
 
-func TestClient_Rpc(t *testing.T) {
+func test2() {
 	protocol := &eio.RpcProtocol{}
 	protocol.MagicBytes = []byte{0xA0, 0xA0}
 	protocol.MessageByteSize = 8
 	protocol.CheckCodeBytes = []byte{0x0A, 0x0A}
+	client := eio.NewClient("localhost:8000", protocol)
+	var rpc *eio.RpcTemplate
+	client.Connect(func(session *eio.Session) {
+		rpc = eio.NewRpcTemplate(session)
+		rpc.RegisterRpcMessageHandle("0001", func(m *eio.RpcMessage) {
+			if m.ResponseId%10000 == 0 {
+				println(time.Now().String(), m.RequestId)
+			}
+		})
+		session.OnMessage = rpc.OnMessage
+	})
 
-	rpc := eio.NewRpcTemplate()
-	client := eio.NewClient("localhost:8000", protocol, rpc.OnMessage)
-
-	client.Connect(rpc.OnConnect)
-
-	m, err := rpc.SendWithResponse(&eio.RpcMessage{
-		MessageType:     []byte{0x00, 0x01},
-		DataContentType: eio.TEXT,
-		Body:            "hello",
-	}, 1*time.Second)
-
-	if err == nil {
-		println(m.ResponseId)
+	for i := 0; i < 15; i++ {
+		go func() {
+			for {
+				rpc.Send(&eio.RpcMessage{
+					MessageType:     []byte{0x00, 0x01},
+					DataContentType: eio.TEXT,
+					Body:            "hello",
+				}, 1*time.Second)
+			}
+		}()
 	}
+}
 
+func TestClient_Rpc(t *testing.T) {
+	go test2()
 	time.Sleep(1 * time.Hour)
 }

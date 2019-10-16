@@ -15,13 +15,12 @@ type Server struct {
 	OnMessage   func(message interface{}, session *Session)
 }
 
-func NewServer(addr string, protocol Protocol, onMessage func(message interface{}, session *Session)) *Server {
+func NewServer(addr string, protocol Protocol) *Server {
 	server := &Server{
-		Addr:      addr,
-		Protocol:  protocol,
-		Sockets:   make(map[string]*Session),
-		Log:       &SysLog{},
-		OnMessage: onMessage,
+		Addr:     addr,
+		Protocol: protocol,
+		Sockets:  make(map[string]*Session),
+		Log:      &SysLog{},
 	}
 	return server
 }
@@ -55,16 +54,9 @@ func (server *Server) Listen(onConnect func(session *Session)) error {
 			continue
 		}
 		session := NewSession(conn, server.Protocol)
-		session.SetLog(server.Log)
-
-		if server.OnMessage != nil {
-			session.OnMessage = server.OnMessage
-		}
 		server.Sockets[session.Id] = session
+		onConnect(session)
 		session.poll()
-		go func() {
-			onConnect(session)
-		}()
 	}
 	return nil
 }

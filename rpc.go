@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -85,51 +86,38 @@ func (rpcProtocol *RpcProtocol) Encode(session *Session, message interface{}) (*
 type RpcContext struct {
 	RequestId    int64
 	RequestTime  time.Time
-	lock         *sync.Mutex
-	Response     *RpcMessage
 	ResponseTime time.Time
+	Response     chan *RpcMessage
 }
 
 func NewRpcContext(requestId int64) *RpcContext {
 	return &RpcContext{
 		RequestId:    requestId,
 		ResponseTime: time.Now(),
-		lock:         &sync.Mutex{},
+		Response:     make(chan *RpcMessage, 1),
 	}
 }
 
 type RpcTemplate struct {
 	session        *Session
-	rpcContexts    map[int64]*RpcContext
+	rpcContexts    *sync.Map
 	messageHandles map[string]func(message *RpcMessage)
-	connectionLock *sync.Mutex
-	isReady        bool
 }
 
-func NewRpcTemplate() *RpcTemplate {
-	lock := &sync.Mutex{}
-	lock.Lock()
+func NewRpcTemplate(session *Session) *RpcTemplate {
 	return &RpcTemplate{
-		rpcContexts:    make(map[int64]*RpcContext),
+		rpcContexts:    &sync.Map{},
 		messageHandles: make(map[string]func(message *RpcMessage)),
-		connectionLock: lock,
+		session:        session,
 	}
-}
-
-func (rpc *RpcTemplate) OnConnect(session *Session) {
-	rpc.session = session
-	rpc.connectionLock.Unlock()
-	rpc.isReady = true
 }
 
 func (rpc *RpcTemplate) OnMessage(message interface{}, session *Session) {
 	if rpcMessage, ok := (message).(*RpcMessage); ok {
-		if requestContext := rpc.rpcContexts[rpcMessage.ResponseId]; requestContext != nil {
+		if requestContext := rpc.GetRpcContext(rpcMessage.ResponseId); requestContext != nil {
 			requestContext.ResponseTime = time.Now()
-			requestContext.Response = rpcMessage
-			requestContext.lock.Unlock()
+			requestContext.Response <- rpcMessage
 		}
-
 		if f := rpc.messageHandles[hex.EncodeToString(rpcMessage.MessageType)]; f != nil {
 			f(rpcMessage)
 		}
@@ -141,26 +129,41 @@ func (rpc *RpcTemplate) RegisterRpcMessageHandle(messageType string, f func(mess
 }
 
 func (rpc *RpcTemplate) Send(m *RpcMessage, timeout time.Duration) (int, error) {
-	if !rpc.isReady {
-		rpc.connectionLock.Lock()
-		rpc.connectionLock.Unlock()
+	if m.RequestId == 0 {
+		m.RequestId = generateRequestIndex()
 	}
 	return rpc.session.SendMessage(m)
 }
 
 var requestIndex int64 = 0
 
+func generateRequestIndex() int64 {
+	return atomic.AddInt64(&requestIndex, 1)
+}
 func (rpc *RpcTemplate) SendWithResponse(m *RpcMessage, timeout time.Duration) (*RpcMessage, error) {
-	requestIndex++
-	m.RequestId = requestIndex
+	m.RequestId = generateRequestIndex()
+	rpcContext := NewRpcContext(m.RequestId)
+	rpc.SetRpcContext(m.RequestId, rpcContext)
 	_, err := rpc.Send(m, timeout)
 	if err != nil {
+		println("err ", err)
 		return nil, err
 	}
-	rpcContext := NewRpcContext(m.RequestId)
-	rpc.rpcContexts[m.RequestId] = rpcContext
-	rpcContext.lock.Lock()
-	rpcContext.lock.Lock()
-	defer rpcContext.lock.Unlock()
-	return rpcContext.Response, nil
+	response := <-rpcContext.Response
+	rpc.RemoveRpcContext(m.RequestId)
+	return response, nil
+}
+
+func (rpc *RpcTemplate) SetRpcContext(requestId int64, ctx *RpcContext) {
+	rpc.rpcContexts.Store(requestId, ctx)
+}
+
+func (rpc *RpcTemplate) GetRpcContext(requestId int64) *RpcContext {
+	data, _ := rpc.rpcContexts.Load(requestId)
+	ctx, _ := data.(*RpcContext)
+	return ctx
+}
+
+func (rpc *RpcTemplate) RemoveRpcContext(requestId int64) {
+	rpc.rpcContexts.Delete(requestId)
 }
