@@ -1,8 +1,13 @@
 package eio
 
+import (
+	"sync"
+)
+
 type MessageByteBuffer struct {
-	buf []byte
-	len int64
+	b    []byte
+	len  int64
+	lock sync.Mutex
 }
 
 func (messageByteBuffer *MessageByteBuffer) Len() int64 {
@@ -10,30 +15,42 @@ func (messageByteBuffer *MessageByteBuffer) Len() int64 {
 }
 
 func (messageByteBuffer *MessageByteBuffer) Discard(l int64) {
-	messageByteBuffer.buf = messageByteBuffer.buf[l:]
+	messageByteBuffer.lock.Lock()
+	defer messageByteBuffer.lock.Unlock()
+	messageByteBuffer.b = messageByteBuffer.b[l:]
 	messageByteBuffer.len -= l
 }
 
-func (messageByteBuffer *MessageByteBuffer) Append(bytes []byte) {
-	messageByteBuffer.buf = append(messageByteBuffer.buf, bytes...)
-	messageByteBuffer.len += int64(len(bytes))
+func (messageByteBuffer *MessageByteBuffer) Append(b []byte) {
+	messageByteBuffer.lock.Lock()
+	defer messageByteBuffer.lock.Unlock()
+	messageByteBuffer.b = append(messageByteBuffer.b, b...)
+	messageByteBuffer.len += int64(len(b))
 }
 
 func (messageByteBuffer *MessageByteBuffer) AppendByte(b byte) {
-	messageByteBuffer.buf = append(messageByteBuffer.buf, b)
-	messageByteBuffer.len += 1
+	messageByteBuffer.Append([]byte{b})
 }
 
 func (messageByteBuffer *MessageByteBuffer) Peek(start int64, end int64) *MessageByteBuffer {
 	return &MessageByteBuffer{
-		buf: messageByteBuffer.buf[start:end],
+		b:   messageByteBuffer.b[start:end],
+		len: end - start,
 	}
 }
 
 func (messageByteBuffer *MessageByteBuffer) Int64Value(start int64, end int64) int64 {
-	return BytesToInt64(messageByteBuffer.buf[start:end])
+	b := messageByteBuffer.b[start:end]
+	return BytesToInt64(b)
 }
 
 func (messageByteBuffer *MessageByteBuffer) Message() []byte {
-	return messageByteBuffer.buf
+	return messageByteBuffer.b
+}
+
+func NewMessageByteBuffer() *MessageByteBuffer {
+	return &MessageByteBuffer{
+		b:   []byte{},
+		len: 0,
+	}
 }

@@ -33,13 +33,12 @@ func (p *VariableProtocol) Segment(session *Session, messageByteBuffer *MessageB
 		return 0, 0
 	}
 
-	if bytes.Equal(p.MagicBytes, messageByteBuffer.Peek(0, int64(magicBytesLength)).Message()) {
+	if !bytes.Equal(p.MagicBytes, messageByteBuffer.Peek(0, int64(magicBytesLength)).Message()) {
 		messageByteBuffer.Discard(1)
 		return p.Segment(session, messageByteBuffer)
 	}
 
-	lengthBytes := messageByteBuffer.buf[len(p.MagicBytes):(len(p.MagicBytes) + p.MessageByteSize)]
-	messageLength := BytesToInt64(lengthBytes)
+	messageLength := messageByteBuffer.Int64Value(int64(len(p.MagicBytes)), int64(len(p.MagicBytes)+p.MessageByteSize))
 
 	if messageByteBuffer.Len() < messageLength {
 		return 0, 0

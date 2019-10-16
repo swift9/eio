@@ -21,6 +21,7 @@ type Session struct {
 	Log               ILog
 	isClosedRead      bool
 	isClosedWrite     bool
+	OnMessage         func(message interface{}, session *Session)
 }
 
 func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
@@ -31,7 +32,7 @@ func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
 		ReadBufferSize:    1024 * 1024,
 		WriteBufferSize:   1024 * 1024,
 		TcpNoDelay:        false,
-		MessageByteBuffer: &MessageByteBuffer{},
+		MessageByteBuffer: NewMessageByteBuffer(),
 		Protocol:          protocol,
 		isPooled:          false,
 		Log:               &SysLog{},
@@ -177,7 +178,7 @@ func (s *Session) ByteBufferSegment() {
 
 func (s *Session) handleMessageByte(messageByte *MessageByteBuffer) {
 	if message, err := s.Protocol.Decode(s, messageByte); err == nil {
-		s.Emit("message", &message)
+		s.OnMessage(message, s)
 	} else {
 		s.Log.Error("decode ", err)
 	}

@@ -7,19 +7,19 @@ func Int8ToBytes(i int64) []byte {
 }
 
 func Int16ToBytes(i int64) []byte {
-	var buf = make([]byte, 16)
+	var buf = make([]byte, 2)
 	binary.BigEndian.PutUint16(buf, uint16(i))
 	return buf
 }
 
 func Int32ToBytes(i int64) []byte {
-	var buf = make([]byte, 32)
+	var buf = make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, uint32(i))
 	return buf
 }
 
 func Int64ToBytes(i int64) []byte {
-	var buf = make([]byte, 64)
+	var buf = make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(i))
 	return buf
 }

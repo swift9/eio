@@ -33,13 +33,13 @@ func (rpcProtocol *RpcProtocol) IsValidMessage(session *Session, message *Messag
 
 func (rpcProtocol *RpcProtocol) Decode(session *Session, message *MessageByteBuffer) (interface{}, error) {
 	eioMessage := &RpcMessage{}
-	eioMessage.MessageSize = message.Int64Value(2, 9)
-	eioMessage.MessageType = message.Peek(10, 11).Message()
-	eioMessage.RequestId = message.Int64Value(12, 19)
-	eioMessage.ResponseId = message.Int64Value(20, 27)
-	eioMessage.DataContentType = message.Peek(28, 28).Message()[0]
+	eioMessage.MessageSize = message.Int64Value(2, 10)
+	eioMessage.MessageType = message.Peek(10, 12).Message()
+	eioMessage.RequestId = message.Int64Value(12, 20)
+	eioMessage.ResponseId = message.Int64Value(20, 28)
+	eioMessage.DataContentType = message.Peek(28, 29).Message()[0]
 	if eioMessage.DataContentType == TEXT {
-		eioMessage.Body = string(message.Peek(29, eioMessage.MessageSize-1-rpcProtocol.GetCheckCodeLength()).Message())
+		eioMessage.Body = string(message.Peek(29, eioMessage.MessageSize-rpcProtocol.GetCheckCodeLength()).Message())
 	}
 	return eioMessage, nil
 }
@@ -47,7 +47,7 @@ func (rpcProtocol *RpcProtocol) Decode(session *Session, message *MessageByteBuf
 var requestIndex int64
 
 func (rpcProtocol *RpcProtocol) Encode(session *Session, message interface{}) (*MessageByteBuffer, error) {
-	byteBuffer := &MessageByteBuffer{}
+	byteBuffer := NewMessageByteBuffer()
 	byteBuffer.Append(rpcProtocol.MagicBytes)
 
 	rpcMessage, _ := message.(*RpcMessage)
@@ -58,7 +58,6 @@ func (rpcProtocol *RpcProtocol) Encode(session *Session, message interface{}) (*
 			byteBuffer.Append(rpcMessage.MessageType)
 			requestIndex++
 			byteBuffer.Append(Int64ToBytes(requestIndex))
-			byteBuffer.Append(Int64ToBytes(rpcMessage.ResponseId))
 			byteBuffer.Append(Int64ToBytes(rpcMessage.ResponseId))
 			byteBuffer.AppendByte(rpcMessage.DataContentType)
 			byteBuffer.Append(body)

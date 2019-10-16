@@ -58,14 +58,12 @@ func (server *Server) Listen(onConnect func(session *Session)) error {
 		session.SetLog(server.Log)
 
 		if server.OnMessage != nil {
-			session.On("message", func(message interface{}) {
-				server.OnMessage(message, session)
-			})
+			session.OnMessage = server.OnMessage
 		}
 		server.Sockets[session.Id] = session
+		session.poll()
 		go func() {
 			onConnect(session)
-			session.poll()
 		}()
 	}
 	return nil

@@ -40,13 +40,11 @@ func (c *Client) Connect(onConnect func(s *Session)) error {
 	session := NewSession(conn, c.Protocol)
 	session.SetLog(c.Log)
 	if c.OnMessage != nil {
-		session.On("message", func(message interface{}) {
-			c.OnMessage(message, session)
-		})
+		session.OnMessage = c.OnMessage
 	}
+	session.poll()
 	go func() {
 		onConnect(session)
-		session.poll()
 	}()
 	return nil
 }
