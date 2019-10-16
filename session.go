@@ -184,7 +184,7 @@ func (s *Session) ByteBufferSegment() {
 
 func (s *Session) handleMessageByte(messageByte *MessageByteBuffer) {
 	if message, err := s.Protocol.Decode(s, messageByte); err == nil {
-		s.OnMessage(message, s)
+		go s.OnMessage(message, s)
 	} else {
 		s.Log.Error("decode ", err)
 	}

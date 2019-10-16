@@ -118,9 +118,11 @@ func (rpc *RpcTemplate) OnMessage(message interface{}, session *Session) {
 			requestContext.ResponseTime = time.Now()
 			requestContext.Response <- rpcMessage
 		}
-		if f := rpc.messageHandles[hex.EncodeToString(rpcMessage.MessageType)]; f != nil {
-			f(rpcMessage)
-		}
+		go func() {
+			if f := rpc.messageHandles[hex.EncodeToString(rpcMessage.MessageType)]; f != nil {
+				f(rpcMessage)
+			}
+		}()
 	}
 }
 

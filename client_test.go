@@ -18,19 +18,22 @@ func test() {
 		session.OnMessage = rpc.OnMessage
 	})
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 15; i++ {
 		go func() {
+			i := 0
 			for {
+				i++
+				if i == 10000 {
+					break
+				}
+				t := time.Now()
 				m, _ := rpc.SendWithResponse(&eio.RpcMessage{
 					MessageType:     []byte{0x00, 0x01},
 					DataContentType: eio.TEXT,
 					Body:            "hello",
 				}, 1*time.Second)
 				if m.ResponseId%10000 == 0 {
-					println(time.Now().String(), m.RequestId)
-				}
-				if m.ResponseId > 30*10000 {
-					break
+					println(time.Now().String(), m.RequestId, (time.Now().UnixNano()-t.UnixNano())/1000.0)
 				}
 			}
 		}()
@@ -53,21 +56,27 @@ func test2() {
 		})
 		session.OnMessage = rpc.OnMessage
 	})
-
 	for i := 0; i < 15; i++ {
 		go func() {
+			i := 0
 			for {
+				i++
+				if i == 10000 {
+					break
+				}
 				rpc.Send(&eio.RpcMessage{
 					MessageType:     []byte{0x00, 0x01},
 					DataContentType: eio.TEXT,
 					Body:            "hello",
 				}, 1*time.Second)
+
 			}
 		}()
 	}
 }
 
 func TestClient_Rpc(t *testing.T) {
-	go test2()
+	go test()
+	println(time.Now().String())
 	time.Sleep(1 * time.Hour)
 }
