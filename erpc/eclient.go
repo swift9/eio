@@ -21,6 +21,9 @@ func (ec *EClient) Connect(onConnect func(es *ESession)) error {
 	err := ec.Client.Connect(func(s *eio.Session) {
 		es := NewESession(s)
 		s.OnMessage = es.onMessage
+		s.OnReadOrWriteError = func(err error, session *eio.Session) {
+			es.Close()
+		}
 		onConnect(es)
 	})
 	return err

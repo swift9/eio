@@ -17,6 +17,9 @@ func (server *EServer) Listen(onConnect func(es *ESession)) {
 	server.Server.Listen(func(s *eio.Session) {
 		es := NewESession(s)
 		s.OnMessage = es.onMessage
+		s.OnReadOrWriteError = func(err error, session *eio.Session) {
+			es.Close()
+		}
 		onConnect(es)
 	})
 }

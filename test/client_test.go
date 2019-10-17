@@ -48,6 +48,7 @@ func test(threadCount int64, msgCountPerThread int64) time.Time {
 		}()
 	}
 	w.Wait()
+	rpc.Close()
 	return start
 }
 

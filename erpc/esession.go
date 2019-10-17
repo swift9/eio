@@ -8,21 +8,6 @@ import (
 	"time"
 )
 
-type ESessionContext struct {
-	RequestId    int64
-	RequestTime  time.Time
-	ResponseTime time.Time
-	Response     chan *EMessage
-}
-
-func newESessionContext(requestId int64) *ESessionContext {
-	return &ESessionContext{
-		RequestId:    requestId,
-		ResponseTime: time.Now(),
-		Response:     make(chan *EMessage, 1),
-	}
-}
-
 type ESession struct {
 	Session        *eio.Session
 	Seq            int64
@@ -36,6 +21,21 @@ func NewESession(session *eio.Session) *ESession {
 		Seq:            0,
 		messageHandles: make(map[string]func(message *EMessage)),
 		Session:        session,
+	}
+}
+
+type rpcContext struct {
+	RequestId    int64
+	RequestTime  time.Time
+	ResponseTime time.Time
+	Response     chan *EMessage
+}
+
+func newRpcContext(requestId int64) *rpcContext {
+	return &rpcContext{
+		RequestId:    requestId,
+		ResponseTime: time.Now(),
+		Response:     make(chan *EMessage, 1),
 	}
 }
 
@@ -66,31 +66,45 @@ func (eSession *ESession) Send(m *EMessage, timeout time.Duration) (int, error) 
 
 func (eSession *ESession) SendWithResponse(m *EMessage, timeout time.Duration) (*EMessage, error) {
 	m.Id = atomic.AddInt64(&eSession.Seq, 1)
-	rpcContext := newESessionContext(m.Id)
+	rpcContext := newRpcContext(m.Id)
 	eSession.setRpcContext(m.Id, rpcContext)
 	_, err := eSession.Send(m, timeout)
 	if err != nil {
 		return nil, err
 	}
 	response := <-rpcContext.Response
-	eSession.removeRpcContext(m.Id)
+	eSession.destroyRpcContext(rpcContext)
 	return response, nil
 }
 
 func (eSession *ESession) Close() error {
-	return eSession.Session.Close()
+	err := eSession.Session.Close()
+
+	eSession.rpcContexts.Range(func(key, value interface{}) bool {
+		defer func() {
+			if err := recover(); err != nil {
+				eSession.Session.Log.Error("close ", err)
+			}
+		}()
+		ctx, _ := value.(*rpcContext)
+		close(ctx.Response)
+		return false
+	})
+
+	return err
 }
 
-func (eSession *ESession) setRpcContext(requestId int64, ctx *ESessionContext) {
+func (eSession *ESession) setRpcContext(requestId int64, ctx *rpcContext) {
 	eSession.rpcContexts.Store(requestId, ctx)
 }
 
-func (eSession *ESession) getRpcContext(requestId int64) *ESessionContext {
+func (eSession *ESession) getRpcContext(requestId int64) *rpcContext {
 	data, _ := eSession.rpcContexts.Load(requestId)
-	ctx, _ := data.(*ESessionContext)
+	ctx, _ := data.(*rpcContext)
 	return ctx
 }
 
-func (eSession *ESession) removeRpcContext(requestId int64) {
-	eSession.rpcContexts.Delete(requestId)
+func (eSession *ESession) destroyRpcContext(c *rpcContext) {
+	close(c.Response)
+	eSession.rpcContexts.Delete(c.RequestId)
 }

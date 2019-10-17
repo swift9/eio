@@ -7,16 +7,18 @@ import (
 )
 
 type Session struct {
-	Id                int64
-	ReadBufferSize    int
-	WriteBufferSize   int
-	MessageByteBuffer *MessageBuffer
-	Conn              *net.TCPConn
-	Protocol          Protocol
-	isPooled          bool
-	Log               ILog
-	Context           map[string]interface{}
-	OnMessage         func(message interface{}, session *Session)
+	Id                 int64
+	ReadBufferSize     int
+	WriteBufferSize    int
+	MessageByteBuffer  *MessageBuffer
+	Conn               *net.TCPConn
+	IsClosed           bool
+	Protocol           Protocol
+	isPooled           bool
+	Log                ILog
+	Context            map[string]interface{}
+	OnMessage          func(message interface{}, session *Session)
+	OnReadOrWriteError func(err error, session *Session)
 }
 
 func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
@@ -29,6 +31,9 @@ func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
 		Protocol:          protocol,
 		isPooled:          false,
 		Log:               &SysLog{},
+		OnReadOrWriteError: func(err error, session *Session) {
+			session.Close()
+		},
 	}
 	return socket
 }
@@ -53,53 +58,48 @@ func (s *Session) SetKeepAlive(keepAlive bool) {
 	s.Conn.SetKeepAlive(keepAlive)
 }
 
-func (s *Session) Write(bytes []byte) (int, error) {
-	if s.Conn == nil {
-		return 0, errors.New("connection is closed")
-	}
-	n, err := s.Conn.Write(bytes)
-	if err != nil {
-		s.Log.Error("write error ", err)
-		s.CloseWrite()
-	}
-	return n, err
-}
-
 func (s *Session) SendMessage(message interface{}) (int, error) {
 	bytes, _ := s.Protocol.Encode(s, message)
 	return s.Write(bytes.Bytes())
 }
 
-func (s *Session) Read(bytes []byte) (int, error) {
-	if s.Conn == nil {
-		s.Log.Error("connection is nil")
-		return 0, errors.New("connection is nil")
+func (s *Session) Write(bytes []byte) (int, error) {
+
+	if s.IsClosed || s.Conn == nil {
+		return 0, errors.New("connection is closed")
 	}
-	n, err := s.Conn.Read(bytes)
+	n, err := s.Conn.Write(bytes)
 	if err != nil {
-		s.Log.Error("read error ", err)
-		s.CloseRead()
+		s.Log.Error("write error ", err)
+		s.OnReadOrWriteError(err, s)
 	}
 	return n, err
 }
 
-func (s *Session) CloseRead() error {
-	err := s.Conn.CloseRead()
-	return err
-}
-
-func (s *Session) CloseWrite() error {
-	err := s.Conn.CloseWrite()
-	return err
+func (s *Session) Read(bytes []byte) (int, error) {
+	if s.IsClosed || s.Conn == nil {
+		s.Log.Error("connection is closed")
+		return 0, errors.New("connection is closed")
+	}
+	n, err := s.Conn.Read(bytes)
+	if err != nil {
+		s.Log.Error("read error ", err)
+		s.OnReadOrWriteError(err, s)
+	}
+	return n, err
 }
 
 func (s *Session) Close() error {
+	if s.IsClosed {
+		return nil
+	}
+	s.IsClosed = true
 	e := s.Conn.Close()
 	return e
 }
 
-func (s *Session) Pipe(socket *Session) {
-	w := bufio.NewWriterSize(socket, socket.WriteBufferSize)
+func (s *Session) Pipe(session *Session) {
+	w := bufio.NewWriterSize(session, session.WriteBufferSize)
 	r := bufio.NewReaderSize(s, s.ReadBufferSize)
 	w.ReadFrom(r)
 }
