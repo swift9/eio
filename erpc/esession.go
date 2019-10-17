@@ -15,7 +15,7 @@ type ESessionContext struct {
 	Response     chan *EMessage
 }
 
-func NewESessionContext(requestId int64) *ESessionContext {
+func newESessionContext(requestId int64) *ESessionContext {
 	return &ESessionContext{
 		RequestId:    requestId,
 		ResponseTime: time.Now(),
@@ -39,54 +39,58 @@ func NewESession(session *eio.Session) *ESession {
 	}
 }
 
-func (rpc *ESession) onMessage(message interface{}, session *eio.Session) {
+func (eSession *ESession) onMessage(message interface{}, session *eio.Session) {
 	if rpcMessage, ok := (message).(*EMessage); ok {
-		if requestContext := rpc.GetRpcContext(rpcMessage.ResponseId); requestContext != nil {
+		if requestContext := eSession.getRpcContext(rpcMessage.ResponseId); requestContext != nil {
 			requestContext.ResponseTime = time.Now()
 			requestContext.Response <- rpcMessage
 		}
 		go func() {
-			if f := rpc.messageHandles[hex.EncodeToString(rpcMessage.MessageType)]; f != nil {
+			if f := eSession.messageHandles[hex.EncodeToString(rpcMessage.MessageType)]; f != nil {
 				f(rpcMessage)
 			}
 		}()
 	}
 }
 
-func (rpc *ESession) RegisterMessageHandle(messageType string, f func(message *EMessage)) {
-	rpc.messageHandles[messageType] = f
+func (eSession *ESession) RegisterMessageHandle(messageType string, f func(message *EMessage)) {
+	eSession.messageHandles[messageType] = f
 }
 
-func (rpc *ESession) Send(m *EMessage, timeout time.Duration) (int, error) {
+func (eSession *ESession) Send(m *EMessage, timeout time.Duration) (int, error) {
 	if m.Id == 0 {
-		m.Id = atomic.AddInt64(&rpc.Seq, 1)
+		m.Id = atomic.AddInt64(&eSession.Seq, 1)
 	}
-	return rpc.Session.SendMessage(m)
+	return eSession.Session.SendMessage(m)
 }
 
-func (rpc *ESession) SendWithResponse(m *EMessage, timeout time.Duration) (*EMessage, error) {
-	m.Id = atomic.AddInt64(&rpc.Seq, 1)
-	rpcContext := NewESessionContext(m.Id)
-	rpc.SetRpcContext(m.Id, rpcContext)
-	_, err := rpc.Send(m, timeout)
+func (eSession *ESession) SendWithResponse(m *EMessage, timeout time.Duration) (*EMessage, error) {
+	m.Id = atomic.AddInt64(&eSession.Seq, 1)
+	rpcContext := newESessionContext(m.Id)
+	eSession.setRpcContext(m.Id, rpcContext)
+	_, err := eSession.Send(m, timeout)
 	if err != nil {
 		return nil, err
 	}
 	response := <-rpcContext.Response
-	rpc.RemoveRpcContext(m.Id)
+	eSession.removeRpcContext(m.Id)
 	return response, nil
 }
 
-func (rpc *ESession) SetRpcContext(requestId int64, ctx *ESessionContext) {
-	rpc.rpcContexts.Store(requestId, ctx)
+func (eSession *ESession) Close() error {
+	return eSession.Session.Close()
 }
 
-func (rpc *ESession) GetRpcContext(requestId int64) *ESessionContext {
-	data, _ := rpc.rpcContexts.Load(requestId)
+func (eSession *ESession) setRpcContext(requestId int64, ctx *ESessionContext) {
+	eSession.rpcContexts.Store(requestId, ctx)
+}
+
+func (eSession *ESession) getRpcContext(requestId int64) *ESessionContext {
+	data, _ := eSession.rpcContexts.Load(requestId)
 	ctx, _ := data.(*ESessionContext)
 	return ctx
 }
 
-func (rpc *ESession) RemoveRpcContext(requestId int64) {
-	rpc.rpcContexts.Delete(requestId)
+func (eSession *ESession) removeRpcContext(requestId int64) {
+	eSession.rpcContexts.Delete(requestId)
 }
