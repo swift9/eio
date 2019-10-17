@@ -16,11 +16,12 @@ func TestServer_Rpc(t *testing.T) {
 
 	server.Listen(func(session *eio.Session) {
 		rpc := eio.NewRpcTemplate(session)
+		session.OnMessage = rpc.OnMessage
+
 		rpc.RegisterRpcMessageHandle("0001", func(message *eio.RpcMessage) {
 			message.ResponseId = message.RequestId
 			rpc.Send(message, 1*time.Second)
 		})
-		session.OnMessage = rpc.OnMessage
 	})
 
 	for {

@@ -1,13 +1,8 @@
 package eio
 
-import (
-	"sync"
-)
-
 type MessageByteBuffer struct {
-	b    []byte
-	len  int64
-	lock sync.Mutex
+	b   []byte
+	len int64
 }
 
 func (messageByteBuffer *MessageByteBuffer) Len() int64 {
@@ -15,15 +10,11 @@ func (messageByteBuffer *MessageByteBuffer) Len() int64 {
 }
 
 func (messageByteBuffer *MessageByteBuffer) Discard(l int64) {
-	messageByteBuffer.lock.Lock()
-	defer messageByteBuffer.lock.Unlock()
 	messageByteBuffer.b = messageByteBuffer.b[l:]
 	messageByteBuffer.len -= l
 }
 
 func (messageByteBuffer *MessageByteBuffer) Append(b []byte) {
-	messageByteBuffer.lock.Lock()
-	defer messageByteBuffer.lock.Unlock()
 	messageByteBuffer.b = append(messageByteBuffer.b, b...)
 	messageByteBuffer.len += int64(len(b))
 }

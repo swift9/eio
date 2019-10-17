@@ -6,7 +6,6 @@ import (
 	uuid "github.com/satori/go.uuid"
 	event "github.com/swift9/ares-event"
 	"net"
-	"sync"
 )
 
 type Session struct {
@@ -24,7 +23,6 @@ type Session struct {
 	isClosedWrite     bool
 	Context           map[string]interface{}
 	OnMessage         func(message interface{}, session *Session)
-	writeLock         *sync.Mutex
 }
 
 func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
@@ -32,14 +30,13 @@ func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
 	socket := &Session{
 		Id:                id,
 		Conn:              conn,
-		ReadBufferSize:    1024 * 1024,
-		WriteBufferSize:   1024 * 1024,
+		ReadBufferSize:    1024 * 4,
+		WriteBufferSize:   1024 * 256,
 		TcpNoDelay:        false,
 		MessageByteBuffer: NewMessageByteBuffer(),
 		Protocol:          protocol,
 		isPooled:          false,
 		Log:               &SysLog{},
-		writeLock:         &sync.Mutex{},
 	}
 	return socket
 }
@@ -65,8 +62,6 @@ func (s *Session) SetKeepAlive(keepAlive bool) {
 }
 
 func (s *Session) Write(bytes []byte) (int, error) {
-	s.writeLock.Lock()
-	defer s.writeLock.Unlock()
 	if s.Conn == nil {
 		return 0, errors.New("connection is closed")
 	}

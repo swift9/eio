@@ -23,7 +23,7 @@ func test() {
 			i := 0
 			for {
 				i++
-				if i == 10000 {
+				if i == 20000 {
 					break
 				}
 				t := time.Now()
@@ -61,7 +61,7 @@ func test2() {
 			i := 0
 			for {
 				i++
-				if i == 10000 {
+				if i == 20000 {
 					break
 				}
 				rpc.Send(&eio.RpcMessage{
@@ -77,6 +77,7 @@ func test2() {
 
 func TestClient_Rpc(t *testing.T) {
 	go test()
+	go test2()
 	println(time.Now().String())
 	time.Sleep(1 * time.Hour)
 }

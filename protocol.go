@@ -1,8 +1,6 @@
 package eio
 
-import (
-	"bytes"
-)
+import "bytes"
 
 // 协议处理
 // 报文分包、编解码
