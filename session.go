@@ -1,7 +1,6 @@
 package eio
 
 import (
-	"bufio"
 	"errors"
 	"net"
 )
@@ -101,9 +100,7 @@ func (s *Session) Close() error {
 }
 
 func (s *Session) Pipe(session *Session) {
-	w := bufio.NewWriterSize(session, session.WriteBufferSize)
-	r := bufio.NewReaderSize(s, s.ReadBufferSize)
-	w.ReadFrom(r)
+	session.Conn.ReadFrom(s)
 }
 
 func (s *Session) poll() {
