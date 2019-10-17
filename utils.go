@@ -2,6 +2,7 @@ package eio
 
 import (
 	"encoding/binary"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -45,4 +46,10 @@ func BytesToInt64(buf []byte) int64 {
 func Int642Int(i64 int64) int {
 	i := (*int)(unsafe.Pointer(&i64))
 	return *i
+}
+
+var seq int64 = 0
+
+func GenerateSeq() int64 {
+	return atomic.AddInt64(&seq, 1)
 }

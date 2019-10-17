@@ -1,12 +1,10 @@
 package eio
 
 import (
-	event "github.com/swift9/ares-event"
 	"net"
 )
 
 type Client struct {
-	event.Emitter
 	Addr      string
 	Protocol  Protocol
 	Log       ILog

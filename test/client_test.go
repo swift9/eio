@@ -2,6 +2,7 @@ package eio_test
 
 import (
 	"github.com/swift9/eio"
+	"github.com/swift9/eio/erpc"
 	"sync"
 	"testing"
 	"time"
@@ -9,17 +10,16 @@ import (
 
 func test(threadCount int64, msgCountPerThread int64) time.Time {
 	w := &sync.WaitGroup{}
-	protocol := &eio.RpcProtocol{}
+	protocol := &erpc.EProtocol{}
 	protocol.MagicBytes = []byte{0xA0, 0xA0}
 	protocol.MessageByteSize = 8
 	protocol.CheckCodeBytes = []byte{0x0A, 0x0A}
 
 	start := time.Now()
-	client := eio.NewClient("localhost:8000", protocol)
-	var rpc *eio.RpcTemplate
-	client.Connect(func(session *eio.Session) {
-		rpc = eio.NewRpcTemplate(session)
-		session.OnMessage = rpc.OnMessage
+	client := erpc.NewEClient("localhost:8000", protocol)
+	var rpc *erpc.ESession
+	client.Connect(func(session *erpc.ESession) {
+		rpc = session
 	})
 
 	w.Add(eio.Int642Int(threadCount))
@@ -30,9 +30,9 @@ func test(threadCount int64, msgCountPerThread int64) time.Time {
 				i++
 				t := time.Now()
 
-				m, _ := rpc.SendWithResponse(&eio.RpcMessage{
+				m, _ := rpc.SendWithResponse(&erpc.EMessage{
 					MessageType: []byte{0x00, 0x01},
-					DataType:    eio.TEXT,
+					DataType:    erpc.Text,
 					Data:        "hello",
 				}, 1*time.Second)
 
@@ -56,5 +56,4 @@ func TestClient_Rpc(t *testing.T) {
 	var threadCount, msgCountPerThread int64 = 16, 20000
 	start := test(threadCount, msgCountPerThread)
 	println(time.Now().String(), " qps:", (threadCount*msgCountPerThread)/(time.Now().Unix()-start.Unix()))
-
 }
