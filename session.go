@@ -27,7 +27,7 @@ func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
 		Conn:              conn,
 		ReadBufferSize:    1024 * 4,
 		WriteBufferSize:   1024 * 256,
-		MessageByteBuffer: NewMessageByteBuffer(),
+		MessageByteBuffer: NewMessageBuffer(),
 		Protocol:          protocol,
 		isPooled:          false,
 		Log:               &SysLog{},

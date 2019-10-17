@@ -40,9 +40,16 @@ func (buf *MessageBuffer) Bytes() []byte {
 	return buf.b
 }
 
-func NewMessageByteBuffer() *MessageBuffer {
+func NewMessageBuffer() *MessageBuffer {
 	return &MessageBuffer{
 		b:   []byte{},
 		len: 0,
+	}
+}
+
+func NewMessageBufferFrom(bs []byte) *MessageBuffer {
+	return &MessageBuffer{
+		b:   bs,
+		len: len(bs),
 	}
 }

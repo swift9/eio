@@ -47,7 +47,7 @@ func (rpcProtocol *EProtocol) Decode(session *eio.Session, message *eio.MessageB
 }
 
 func (rpcProtocol *EProtocol) Encode(session *eio.Session, message interface{}) (*eio.MessageBuffer, error) {
-	byteBuffer := eio.NewMessageByteBuffer()
+	byteBuffer := eio.NewMessageBuffer()
 	byteBuffer.Append(rpcProtocol.MagicBytes)
 
 	rpcMessage, _ := message.(*EMessage)
