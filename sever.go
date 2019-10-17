@@ -45,7 +45,9 @@ func (server *Server) Listen(onConnect func(session *Session)) error {
 		}
 		session := NewSession(conn, server.Protocol)
 		onConnect(session)
-		session.poll()
+		if session.AutoPoll {
+			session.poll()
+		}
 	}
 	return nil
 }

@@ -36,6 +36,8 @@ func (c *Client) Connect(onConnect func(s *Session)) error {
 	}
 	session := NewSession(conn, c.Protocol)
 	onConnect(session)
-	session.poll()
+	if session.AutoPoll {
+		session.poll()
+	}
 	return nil
 }

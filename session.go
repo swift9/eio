@@ -15,6 +15,7 @@ type Session struct {
 	IsClosed           bool
 	Protocol           Protocol
 	isPooled           bool
+	AutoPoll           bool
 	Log                ILog
 	Context            map[string]interface{}
 	OnMessage          func(message interface{}, session *Session)
@@ -26,10 +27,11 @@ func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
 		Id:                GenerateSeq(),
 		Conn:              conn,
 		ReadBufferSize:    1024 * 4,
-		WriteBufferSize:   1024 * 256,
+		WriteBufferSize:   1024 * 4,
 		MessageByteBuffer: NewMessageBuffer(),
 		Protocol:          protocol,
 		isPooled:          false,
+		AutoPoll:          true,
 		Log:               &SysLog{},
 		OnReadOrWriteError: func(err error, session *Session) {
 			session.Close()
