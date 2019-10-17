@@ -19,7 +19,7 @@ func TestServer_Rpc(t *testing.T) {
 		session.OnMessage = rpc.OnMessage
 
 		rpc.RegisterRpcMessageHandle("0001", func(message *eio.RpcMessage) {
-			message.ResponseId = message.RequestId
+			message.ResponseId = message.Id
 			rpc.Send(message, 1*time.Second)
 		})
 	})

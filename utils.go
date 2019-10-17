@@ -1,6 +1,9 @@
 package eio
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"unsafe"
+)
 
 func Int8ToBytes(i int64) []byte {
 	return []byte{byte(i)}
@@ -37,4 +40,9 @@ func BytesToInt64(buf []byte) int64 {
 		i = int64(binary.BigEndian.Uint64(buf))
 	}
 	return i
+}
+
+func Int642Int(i64 int64) int {
+	i := (*int)(unsafe.Pointer(&i64))
+	return *i
 }

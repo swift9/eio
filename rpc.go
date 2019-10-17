@@ -9,12 +9,12 @@ import (
 )
 
 type RpcMessage struct {
-	MessageSize     int64
-	MessageType     []byte
-	RequestId       int64
-	ResponseId      int64
-	DataContentType byte
-	Body            interface{}
+	Id          int64
+	ResponseId  int64
+	MessageSize int64
+	MessageType []byte
+	DataType    byte
+	Data        interface{}
 }
 
 type RpcProtocol struct {
@@ -32,11 +32,11 @@ const (
 	GZIP_BIN byte = 0x03
 )
 
-func (rpcProtocol *RpcProtocol) GetCheckCodeLength() int64 {
+func (rpcProtocol *RpcProtocol) GetCheckCodeLength() int {
 	if rpcProtocol.CheckCodeBytes == nil {
 		return 0
 	}
-	return int64(len(rpcProtocol.CheckCodeBytes))
+	return len(rpcProtocol.CheckCodeBytes)
 }
 
 func (rpcProtocol *RpcProtocol) IsValidMessage(session *Session, message *MessageByteBuffer) bool {
@@ -50,12 +50,11 @@ func (rpcProtocol *RpcProtocol) Decode(session *Session, message *MessageByteBuf
 	eioMessage := &RpcMessage{}
 	eioMessage.MessageSize = message.Int64Value(2, 10)
 	eioMessage.MessageType = message.Peek(10, 12).Message()
-	eioMessage.RequestId = message.Int64Value(12, 20)
+	eioMessage.Id = message.Int64Value(12, 20)
 	eioMessage.ResponseId = message.Int64Value(20, 28)
-	eioMessage.DataContentType = message.Peek(28, 29).Message()[0]
-	if eioMessage.DataContentType == TEXT {
-		eioMessage.Body = string(message.Peek(29, eioMessage.MessageSize-rpcProtocol.GetCheckCodeLength()).Message())
-	}
+	eioMessage.DataType = message.Peek(28, 29).Message()[0]
+
+	eioMessage.Data = message.Peek(29, Int642Int(eioMessage.MessageSize)-rpcProtocol.GetCheckCodeLength()).Message()
 	return eioMessage, nil
 }
 
@@ -64,22 +63,43 @@ func (rpcProtocol *RpcProtocol) Encode(session *Session, message interface{}) (*
 	byteBuffer.Append(rpcProtocol.MagicBytes)
 
 	rpcMessage, _ := message.(*RpcMessage)
-	if str, ok := rpcMessage.Body.(string); ok {
-		if rpcMessage.DataContentType == TEXT {
-			body := []byte(str)
-			byteBuffer.Append(Int64ToBytes(29 + int64(len(body)) + rpcProtocol.GetCheckCodeLength()))
-			byteBuffer.Append(rpcMessage.MessageType)
-			byteBuffer.Append(Int64ToBytes(rpcMessage.RequestId))
-			byteBuffer.Append(Int64ToBytes(rpcMessage.ResponseId))
-			byteBuffer.AppendByte(rpcMessage.DataContentType)
-			byteBuffer.Append(body)
-			if rpcProtocol.CheckCodeBytes != nil {
-				byteBuffer.Append(rpcProtocol.CheckCodeBytes)
-			}
+	var data []byte
+	dataLength := 0
+
+	switch rpcMessage.DataType {
+	case TEXT:
+		if d, ok := rpcMessage.Data.(string); ok {
+			data = []byte(d)
+			dataLength = len(d)
 		}
-	} else {
+	case GZIP_TEXT:
+		if d, ok := rpcMessage.Data.([]byte); ok {
+			data = d
+			dataLength = len(d)
+		}
+	case BIN:
+		if d, ok := rpcMessage.Data.([]byte); ok {
+			data = d
+			dataLength = len(d)
+		}
+	case GZIP_BIN:
+		if d, ok := rpcMessage.Data.([]byte); ok {
+			data = d
+			dataLength = len(d)
+		}
+	default:
 		return nil, errors.New("not support")
 	}
+	byteBuffer.Append(Int64ToBytes(29 + int64(dataLength) + int64(rpcProtocol.GetCheckCodeLength())))
+	byteBuffer.Append(rpcMessage.MessageType)
+	byteBuffer.Append(Int64ToBytes(rpcMessage.Id))
+	byteBuffer.Append(Int64ToBytes(rpcMessage.ResponseId))
+	byteBuffer.AppendByte(rpcMessage.DataType)
+	byteBuffer.Append(data)
+	if rpcProtocol.CheckCodeBytes != nil {
+		byteBuffer.Append(rpcProtocol.CheckCodeBytes)
+	}
+
 	return byteBuffer, nil
 }
 
@@ -131,8 +151,8 @@ func (rpc *RpcTemplate) RegisterRpcMessageHandle(messageType string, f func(mess
 }
 
 func (rpc *RpcTemplate) Send(m *RpcMessage, timeout time.Duration) (int, error) {
-	if m.RequestId == 0 {
-		m.RequestId = generateRequestIndex()
+	if m.Id == 0 {
+		m.Id = generateRequestIndex()
 	}
 	return rpc.session.SendMessage(m)
 }
@@ -143,16 +163,15 @@ func generateRequestIndex() int64 {
 	return atomic.AddInt64(&requestIndex, 1)
 }
 func (rpc *RpcTemplate) SendWithResponse(m *RpcMessage, timeout time.Duration) (*RpcMessage, error) {
-	m.RequestId = generateRequestIndex()
-	rpcContext := NewRpcContext(m.RequestId)
-	rpc.SetRpcContext(m.RequestId, rpcContext)
+	m.Id = generateRequestIndex()
+	rpcContext := NewRpcContext(m.Id)
+	rpc.SetRpcContext(m.Id, rpcContext)
 	_, err := rpc.Send(m, timeout)
 	if err != nil {
-		println("err ", err)
 		return nil, err
 	}
 	response := <-rpcContext.Response
-	rpc.RemoveRpcContext(m.RequestId)
+	rpc.RemoveRpcContext(m.Id)
 	return response, nil
 }
 

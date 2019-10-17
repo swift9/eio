@@ -6,7 +6,7 @@ import "bytes"
 // 报文分包、编解码
 type Protocol interface {
 	// 报文分包
-	Segment(session *Session, buf *MessageByteBuffer) (start int64, end int64)
+	Segment(session *Session, buf *MessageByteBuffer) (start int, end int)
 
 	// 解码
 	Decode(session *Session, message *MessageByteBuffer) (interface{}, error)
@@ -23,26 +23,26 @@ type VariableProtocol struct {
 	MessageByteSize int
 }
 
-func (p *VariableProtocol) Segment(session *Session, messageByteBuffer *MessageByteBuffer) (start int64, end int64) {
+func (p *VariableProtocol) Segment(session *Session, messageByteBuffer *MessageByteBuffer) (start int, end int) {
 	magicBytesLength := len(p.MagicBytes)
 
-	headerLength := int64(magicBytesLength + p.MessageByteSize)
+	headerLength := magicBytesLength + p.MessageByteSize
 	if messageByteBuffer.Len() < headerLength {
 		return 0, 0
 	}
 
-	if !bytes.Equal(p.MagicBytes, messageByteBuffer.Peek(0, int64(magicBytesLength)).Message()) {
+	if !bytes.Equal(p.MagicBytes, messageByteBuffer.Peek(0, magicBytesLength).Message()) {
 		messageByteBuffer.Discard(1)
 		return p.Segment(session, messageByteBuffer)
 	}
 
-	messageLength := messageByteBuffer.Int64Value(int64(len(p.MagicBytes)), int64(len(p.MagicBytes)+p.MessageByteSize))
+	messageLength := messageByteBuffer.Int64Value(len(p.MagicBytes), len(p.MagicBytes)+p.MessageByteSize)
 
-	if messageByteBuffer.Len() < messageLength {
+	if int64(messageByteBuffer.Len()) < messageLength {
 		return 0, 0
 	}
 
-	return 0, messageLength
+	return 0, Int642Int(messageLength)
 }
 
 func (p *VariableProtocol) IsValidMessage(session *Session, message *MessageByteBuffer) bool {
