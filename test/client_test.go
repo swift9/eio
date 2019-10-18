@@ -10,13 +10,9 @@ import (
 
 func test(threadCount int64, msgCountPerThread int64) time.Time {
 	w := &sync.WaitGroup{}
-	protocol := &erpc.EProtocol{}
-	protocol.MagicBytes = []byte{0xA0, 0xA0}
-	protocol.MessageByteSize = 8
-	protocol.CheckCodeBytes = []byte{0x0A, 0x0A}
 
 	start := time.Now()
-	client := erpc.NewEClient("localhost:8000", protocol)
+	client := erpc.NewEClient("localhost:8000", erpc.NewDefaultEProtocol())
 	var rpc *erpc.ESession
 	client.Connect(func(session *erpc.ESession) {
 		rpc = session
@@ -31,7 +27,7 @@ func test(threadCount int64, msgCountPerThread int64) time.Time {
 				t := time.Now()
 
 				m, _ := rpc.SendWithResponse(&erpc.EMessage{
-					MessageType: []byte{0x00, 0x01},
+					MessageType: []byte{0x00, 0x00, 0x00, 0x01},
 					DataType:    erpc.Text,
 					Data:        "hello",
 				}, 1*time.Second)

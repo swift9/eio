@@ -5,9 +5,12 @@ import (
 	"github.com/swift9/eio"
 )
 
+// magicBytes MessageSize MessageType MessageId ResponseId DataType Data CheckCode
 type EProtocol struct {
 	eio.VariableProtocol
-	CheckCodeBytes []byte
+	MessageTypeByteSize int
+	MessageIdByteSize   int
+	CheckCodeByteSize   int
 }
 
 const (
@@ -20,29 +23,46 @@ const (
 	GzipBin byte = 0x03
 )
 
-func (rpcProtocol *EProtocol) GetCheckCodeLength() int {
-	if rpcProtocol.CheckCodeBytes == nil {
-		return 0
+func NewDefaultEProtocol() *EProtocol {
+	p := &EProtocol{
+		VariableProtocol: eio.VariableProtocol{
+			MagicBytes:            []byte{0xEE, 0xEE},
+			MessageLengthByteSize: 8,
+		},
+		MessageTypeByteSize: 4,
+		MessageIdByteSize:   8,
+		CheckCodeByteSize:   0,
 	}
-	return len(rpcProtocol.CheckCodeBytes)
+	return p
 }
 
 func (rpcProtocol *EProtocol) IsValidMessage(session *eio.Session, message *eio.MessageBuffer) bool {
-	if rpcProtocol.CheckCodeBytes == nil {
+	if rpcProtocol.CheckCodeByteSize == 0 {
 		return true
 	}
 	return true
 }
 
+func (rpcProtocol *EProtocol) GenerateCheckCode(b []byte) []byte {
+	return nil
+}
+
 func (rpcProtocol *EProtocol) Decode(session *eio.Session, message *eio.MessageBuffer) (interface{}, error) {
 	eioMessage := &EMessage{}
-	eioMessage.MessageSize = message.Int64Value(2, 10)
-	eioMessage.MessageType = message.Peek(10, 12).Bytes()
-	eioMessage.Id = message.Int64Value(12, 20)
-	eioMessage.ResponseId = message.Int64Value(20, 28)
-	eioMessage.DataType = message.Peek(28, 29).Bytes()[0]
+	MagicByteSize := len(rpcProtocol.MagicBytes)
+	eioMessage.MessageSize = message.Int64Value(MagicByteSize, MagicByteSize+rpcProtocol.MessageIdByteSize)
+	eioMessage.MessageType = message.Peek(MagicByteSize+rpcProtocol.MessageIdByteSize,
+		MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize).Bytes()
+	eioMessage.Id = message.Int64Value(MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize,
+		MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize+rpcProtocol.MessageIdByteSize)
+	eioMessage.ResponseId = message.Int64Value(MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize+rpcProtocol.MessageIdByteSize,
+		MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize+2*rpcProtocol.MessageIdByteSize)
+	eioMessage.DataType = message.Peek(MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize+2*rpcProtocol.MessageIdByteSize,
+		MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize+2*rpcProtocol.MessageIdByteSize+1).Bytes()[0]
 
-	eioMessage.Data = message.Peek(29, eio.Int642Int(eioMessage.MessageSize)-rpcProtocol.GetCheckCodeLength()).Bytes()
+	eioMessage.Data = message.Peek(MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize+2*rpcProtocol.MessageIdByteSize+1,
+		eio.Int642Int(eioMessage.MessageSize)-rpcProtocol.CheckCodeByteSize).Bytes()
+
 	return eioMessage, nil
 }
 
@@ -53,7 +73,6 @@ func (rpcProtocol *EProtocol) Encode(session *eio.Session, message interface{}) 
 	rpcMessage, _ := message.(*EMessage)
 	var data []byte
 	dataLength := 0
-
 	switch rpcMessage.DataType {
 	case Text:
 		if d, ok := rpcMessage.Data.(string); ok {
@@ -78,14 +97,17 @@ func (rpcProtocol *EProtocol) Encode(session *eio.Session, message interface{}) 
 	default:
 		return nil, errors.New("not support")
 	}
-	byteBuffer.Append(eio.Int64ToBytes(29 + int64(dataLength) + int64(rpcProtocol.GetCheckCodeLength())))
+	MagicByteSize := len(rpcProtocol.MagicBytes)
+	size := MagicByteSize + rpcProtocol.MessageIdByteSize + rpcProtocol.MessageTypeByteSize + 2*rpcProtocol.MessageIdByteSize + 1 + dataLength + rpcProtocol.CheckCodeByteSize
+	byteBuffer.Append(eio.Int64ToBytes(int64(size)))
 	byteBuffer.Append(rpcMessage.MessageType)
 	byteBuffer.Append(eio.Int64ToBytes(rpcMessage.Id))
 	byteBuffer.Append(eio.Int64ToBytes(rpcMessage.ResponseId))
 	byteBuffer.AppendByte(rpcMessage.DataType)
 	byteBuffer.Append(data)
-	if rpcProtocol.CheckCodeBytes != nil {
-		byteBuffer.Append(rpcProtocol.CheckCodeBytes)
+
+	if code := rpcProtocol.GenerateCheckCode(byteBuffer.Bytes()); code != nil {
+		byteBuffer.Append(code)
 	}
 
 	return byteBuffer, nil

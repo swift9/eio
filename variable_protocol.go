@@ -5,14 +5,14 @@ import (
 )
 
 type VariableProtocol struct {
-	MagicBytes      []byte
-	MessageByteSize int
+	MagicBytes            []byte
+	MessageLengthByteSize int
 }
 
 func (p *VariableProtocol) Segment(session *Session, messageByteBuffer *MessageBuffer) *MessageBuffer {
 	magicBytesLength := len(p.MagicBytes)
 
-	headerLength := magicBytesLength + p.MessageByteSize
+	headerLength := magicBytesLength + p.MessageLengthByteSize
 	if messageByteBuffer.Len() < headerLength {
 		return nil
 	}
@@ -22,7 +22,7 @@ func (p *VariableProtocol) Segment(session *Session, messageByteBuffer *MessageB
 		return p.Segment(session, messageByteBuffer)
 	}
 
-	messageLength := messageByteBuffer.Int64Value(len(p.MagicBytes), len(p.MagicBytes)+p.MessageByteSize)
+	messageLength := messageByteBuffer.Int64Value(len(p.MagicBytes), len(p.MagicBytes)+p.MessageLengthByteSize)
 
 	if int64(messageByteBuffer.Len()) < messageLength {
 		return nil
