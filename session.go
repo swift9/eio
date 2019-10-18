@@ -22,7 +22,7 @@ type Session struct {
 }
 
 func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
-	socket := &Session{
+	session := &Session{
 		Id:                GenerateSeq(),
 		Conn:              conn,
 		ReadBufferSize:    1024 * 4,
@@ -36,7 +36,8 @@ func NewSession(conn *net.TCPConn, protocol Protocol) *Session {
 			session.Close()
 		},
 	}
-	return socket
+	session.SetKeepAlive(true)
+	return session
 }
 
 func (s *Session) SetLog(log ILog) {
