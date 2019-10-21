@@ -12,14 +12,14 @@ type ESession struct {
 	Session        *eio.Session
 	Seq            int64
 	rpcContexts    *sync.Map
-	messageHandles map[string]func(message *EMessage)
+	messageHandles map[string]func(message *EMessage, eSession *ESession)
 }
 
 func NewESession(session *eio.Session) *ESession {
 	return &ESession{
 		rpcContexts:    &sync.Map{},
 		Seq:            0,
-		messageHandles: make(map[string]func(message *EMessage)),
+		messageHandles: make(map[string]func(message *EMessage, eSession *ESession)),
 		Session:        session,
 	}
 }
@@ -47,13 +47,13 @@ func (eSession *ESession) onMessage(message interface{}, session *eio.Session) {
 		}
 		go func() {
 			if f := eSession.messageHandles[hex.EncodeToString(rpcMessage.MessageType)]; f != nil {
-				f(rpcMessage)
+				f(rpcMessage, eSession)
 			}
 		}()
 	}
 }
 
-func (eSession *ESession) RegisterMessageHandle(messageType string, f func(message *EMessage)) {
+func (eSession *ESession) RegisterMessageHandle(messageType string, f func(message *EMessage, session *ESession)) {
 	eSession.messageHandles[messageType] = f
 }
 
