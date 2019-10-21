@@ -9,7 +9,7 @@ import (
 func TestServer_Rpc(t *testing.T) {
 	server := erpc.NewEServer(":8000", erpc.NewDefaultEProtocol())
 	server.Listen(func(session *erpc.ESession) {
-		session.RegisterMessageHandle("00000001", func(message *erpc.EMessage) {
+		session.RegisterMessageHandle("00000001", func(message *erpc.EMessage, eSession *erpc.ESession) {
 			message.ResponseId = message.Id
 			session.Send(message, 1*time.Second)
 		})
