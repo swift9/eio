@@ -78,6 +78,11 @@ func (rpcProtocol *EProtocol) Encode(session *eio.Session, message interface{}) 
 		if d, ok := rpcMessage.Data.(string); ok {
 			data = []byte(d)
 			dataLength = len(d)
+			break
+		}
+		if d, ok := rpcMessage.Data.([]byte); ok {
+			data = d
+			dataLength = len(d)
 		}
 	case GzipText:
 		if d, ok := rpcMessage.Data.([]byte); ok {
