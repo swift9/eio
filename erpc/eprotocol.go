@@ -1,7 +1,6 @@
 package erpc
 
 import (
-	"errors"
 	"github.com/swift9/eio"
 )
 
@@ -61,7 +60,7 @@ func (rpcProtocol *EProtocol) Decode(session *eio.Session, message *eio.MessageB
 		MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize+2*rpcProtocol.MessageIdByteSize+1).Bytes()[0]
 
 	eioMessage.Data = message.Peek(MagicByteSize+rpcProtocol.MessageIdByteSize+rpcProtocol.MessageTypeByteSize+2*rpcProtocol.MessageIdByteSize+1,
-		eio.Int642Int(eioMessage.MessageSize)-rpcProtocol.CheckCodeByteSize).Bytes()
+		eio.Int642Int(eioMessage.MessageSize)-rpcProtocol.CheckCodeByteSize)
 
 	return eioMessage, nil
 }
@@ -71,45 +70,15 @@ func (rpcProtocol *EProtocol) Encode(session *eio.Session, message interface{}) 
 	byteBuffer.Append(rpcProtocol.MagicBytes)
 
 	rpcMessage, _ := message.(*EMessage)
-	var data []byte
-	dataLength := 0
-	switch rpcMessage.DataType {
-	case Text:
-		if d, ok := rpcMessage.Data.(string); ok {
-			data = []byte(d)
-			dataLength = len(d)
-			break
-		}
-		if d, ok := rpcMessage.Data.([]byte); ok {
-			data = d
-			dataLength = len(d)
-		}
-	case GzipText:
-		if d, ok := rpcMessage.Data.([]byte); ok {
-			data = d
-			dataLength = len(d)
-		}
-	case Bin:
-		if d, ok := rpcMessage.Data.([]byte); ok {
-			data = d
-			dataLength = len(d)
-		}
-	case GzipBin:
-		if d, ok := rpcMessage.Data.([]byte); ok {
-			data = d
-			dataLength = len(d)
-		}
-	default:
-		return nil, errors.New("not support")
-	}
+
 	MagicByteSize := len(rpcProtocol.MagicBytes)
-	size := MagicByteSize + rpcProtocol.MessageIdByteSize + rpcProtocol.MessageTypeByteSize + 2*rpcProtocol.MessageIdByteSize + 1 + dataLength + rpcProtocol.CheckCodeByteSize
+	size := MagicByteSize + rpcProtocol.MessageIdByteSize + rpcProtocol.MessageTypeByteSize + 2*rpcProtocol.MessageIdByteSize + 1 + rpcMessage.Data.Len() + rpcProtocol.CheckCodeByteSize
 	byteBuffer.Append(eio.Int64ToBytes(int64(size)))
 	byteBuffer.Append(rpcMessage.MessageType)
 	byteBuffer.Append(eio.Int64ToBytes(rpcMessage.Id))
 	byteBuffer.Append(eio.Int64ToBytes(rpcMessage.ResponseId))
 	byteBuffer.AppendByte(rpcMessage.DataType)
-	byteBuffer.Append(data)
+	byteBuffer.Append(rpcMessage.Data.Bytes())
 
 	if code := rpcProtocol.GenerateCheckCode(byteBuffer.Bytes()); code != nil {
 		byteBuffer.Append(code)

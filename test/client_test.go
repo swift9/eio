@@ -29,7 +29,7 @@ func test(threadCount int64, msgCountPerThread int64) time.Time {
 				m, _ := rpc.SendWithResponse(&erpc.EMessage{
 					MessageType: []byte{0x00, 0x00, 0x00, 0x01},
 					DataType:    erpc.Text,
-					Data:        "hello",
+					Data:        eio.NewMessageBufferFrom([]byte("hello")),
 				}, 1*time.Second)
 
 				if m.ResponseId%10000 == 0 {
